@@ -2,12 +2,10 @@ from django.core.mail import send_mail
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.contrib.auth import get_user_model
-from django_rest_passwordreset.signals import reset_password_token_created
 from django.conf import settings
+from django_rest_passwordreset.signals import reset_password_token_created
 import traceback
 
-
-# Importation dynamique du modèle Client
 from clients.models import Client
 
 User = get_user_model()
@@ -17,21 +15,17 @@ def create_client_profile(sender, instance, created, **kwargs):
     if created:
         if not instance.is_staff and not instance.is_superuser:
             email_val = instance.email.lower() if instance.email else ''
-            
-            # Recherche si un profil client existe déjà pour éviter le plantage d'unicité (IntegrityError)
             client = Client.objects.filter(user=instance).first()
             if not client and email_val:
                 client = Client.objects.filter(email=email_val).first()
 
             if client:
-                # Mise à jour du profil existant
                 client.user = instance
                 client.first_name = instance.first_name or instance.username or ''
                 client.last_name = instance.last_name or ''
                 client.email = email_val
                 client.save()
             else:
-                # Création propre s'il n'existe pas
                 Client.objects.create(
                     user=instance,
                     first_name=instance.first_name or instance.username or '',
@@ -81,7 +75,6 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             fail_silently=False,
         )
     except Exception as e:
-        # 👈 Ceci va imprimer l'erreur Python complète en rouge dans les logs Render
         print("ERREUR CRITIQUE LORS DE L'ENVOI DU MAIL DE RESET :")
         traceback.print_exc()
         raise e
