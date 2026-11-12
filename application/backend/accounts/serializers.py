@@ -63,7 +63,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                 message=message,
                 from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
                 recipient_list=['adrwarecontact@gmail.com'],
-                fail_silently=False,
+                fail_silently=True,
             )
         except Exception as e:
             print(f"Erreur d'envoi d'e-mail d'activation : {e}")

@@ -72,9 +72,7 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             message=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user_email],
-            fail_silently=False,
+            fail_silently=True,
         )
     except Exception as e:
         print("ERREUR CRITIQUE LORS DE L'ENVOI DU MAIL DE RESET :")
-        traceback.print_exc()
-        raise e

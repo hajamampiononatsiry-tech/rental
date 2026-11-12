@@ -127,7 +127,7 @@ class RegisterView(generics.CreateAPIView):
                     message=message,
                     from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
                     recipient_list=['adrwarecontact@gmail.com'],
-                    fail_silently=False,
+                    fail_silently=True,
                 )
             except Exception as e:
                 print(f"Erreur d'envoi d'e-mail d'activation : {e}")
@@ -163,7 +163,7 @@ class RegisterView(generics.CreateAPIView):
                     message=message,
                     from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
                     recipient_list=[user.email],
-                    fail_silently=False,
+                    fail_silently=True,
                 )
             except Exception as e:
                 print(f"Erreur d'envoi d'e-mail OTP : {e}")
