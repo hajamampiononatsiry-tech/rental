@@ -1,7 +1,5 @@
 databases:
   - name: adrware-db
-    databaseName: rental_db
-    user: postgres
     plan: free
 
 services:
