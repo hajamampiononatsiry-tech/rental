@@ -70,11 +70,12 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'core.urls'
 
 # Configuration CORS (Accepte React Vite en dev)
+# Configuration CORS
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
     CORS_ALLOWED_ORIGINS = [
-        "https://mon-domaine-officiel.com",
+        "https://adrware.onrender.com",
     ]
 
 CORS_ALLOW_CREDENTIALS = True
