@@ -43,12 +43,10 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
     token = reset_password_token.key
     user_email = reset_password_token.user.email
 
-    # Récupération de la requête HTTP pour identifier la provenance (Mobile vs Web)
     request = getattr(instance, 'request', None)
     is_mobile = False
 
     if request:
-        # Vérifie si le paramètre is_web est explicitement faux ou si le User-Agent est mobile
         data = getattr(request, 'data', {})
         is_web = data.get('is_web', True)
         user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
@@ -57,7 +55,6 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             is_mobile = True
 
     if is_mobile:
-        # Format CODE BRUT pour l'application Mobile
         message = (
             f"Bonjour,\n\n"
             f"Voici votre code de réinitialisation pour l'application mobile Adrware :\n\n"
@@ -66,8 +63,7 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             f"Si vous n'avez pas demandé ce changement, veuillez ignorer ce message."
         )
     else:
-        # Format LIEN URL pour le Web (React)
-        reset_url = f"http://192.168.88.17:5173/reset-password?token={token}"
+        reset_url = f"https://adrware.onrender.com/reset-password?token={token}"
         message = (
             f"Bonjour,\n\n"
             f"Utilisez le lien suivant pour réinitialiser votre mot de passe sur la plateforme web :\n"
@@ -75,9 +71,13 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             f"Si vous n'avez pas demandé ce changement, ignorez ce message."
         )
 
-    send_mail(
-        subject="Réinitialisation de votre mot de passe - Adrware",
-        message=message,
-        from_email="noreply@autorental.com",
-        recipient_list=[user_email]
-    )
+    try:
+        send_mail(
+            subject="Réinitialisation de votre mot de passe - Adrware",
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"Erreur d'envoi d'e-mail de réinitialisation : {e}")
