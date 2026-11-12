@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.contrib.auth import get_user_model
 from django_rest_passwordreset.signals import reset_password_token_created
+from django.conf import settings
 import traceback
 
 
