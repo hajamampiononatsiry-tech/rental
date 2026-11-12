@@ -3,6 +3,8 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.contrib.auth import get_user_model
 from django_rest_passwordreset.signals import reset_password_token_created
+import traceback
+
 
 # Importation dynamique du modèle Client
 from clients.models import Client
@@ -40,38 +42,36 @@ def create_client_profile(sender, instance, created, **kwargs):
 
 @receiver(reset_password_token_created)
 def password_reset_token_created(sender, instance, reset_password_token, *args, **kwargs):
-    token = reset_password_token.key
-    user_email = reset_password_token.user.email
-
-    request = getattr(instance, 'request', None)
-    is_mobile = False
-
-    if request:
-        data = getattr(request, 'data', {})
-        is_web = data.get('is_web', True)
-        user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
-        
-        if not is_web or 'okhttp' in user_agent or 'react-native' in user_agent:
-            is_mobile = True
-
-    if is_mobile:
-        message = (
-            f"Bonjour,\n\n"
-            f"Voici votre code de réinitialisation pour l'application mobile Adrware :\n\n"
-            f"{token}\n\n"
-            f"Veuillez copier et coller ce code dans l'application pour définir votre nouveau mot de passe.\n\n"
-            f"Si vous n'avez pas demandé ce changement, veuillez ignorer ce message."
-        )
-    else:
-        reset_url = f"https://adrware.onrender.com/reset-password?token={token}"
-        message = (
-            f"Bonjour,\n\n"
-            f"Utilisez le lien suivant pour réinitialiser votre mot de passe sur la plateforme web :\n"
-            f"{reset_url}\n\n"
-            f"Si vous n'avez pas demandé ce changement, ignorez ce message."
-        )
-
     try:
+        token = reset_password_token.key
+        user_email = reset_password_token.user.email
+
+        request = getattr(instance, 'request', None)
+        is_mobile = False
+
+        if request:
+            data = getattr(request, 'data', {})
+            is_web = data.get('is_web', True)
+            user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+            
+            if not is_web or 'okhttp' in user_agent or 'react-native' in user_agent:
+                is_mobile = True
+
+        if is_mobile:
+            message = (
+                f"Bonjour,\n\n"
+                f"Voici votre code de réinitialisation pour l'application mobile Adrware :\n\n"
+                f"{token}\n\n"
+                f"Veuillez copier et coller ce code dans l'application pour définir votre nouveau mot de passe."
+            )
+        else:
+            reset_url = f"https://adrware.onrender.com/reset-password?token={token}"
+            message = (
+                f"Bonjour,\n\n"
+                f"Utilisez le lien suivant pour réinitialiser votre mot de passe sur la plateforme web :\n"
+                f"{reset_url}"
+            )
+
         send_mail(
             subject="Réinitialisation de votre mot de passe - Adrware",
             message=message,
@@ -80,4 +80,7 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
             fail_silently=False,
         )
     except Exception as e:
-        print(f"Erreur d'envoi d'e-mail de réinitialisation : {e}")
+        # 👈 Ceci va imprimer l'erreur Python complète en rouge dans les logs Render
+        print("ERREUR CRITIQUE LORS DE L'ENVOI DU MAIL DE RESET :")
+        traceback.print_exc()
+        raise e
