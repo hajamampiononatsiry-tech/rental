@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # 1. Base de données PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: adrware_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: rental_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ainakely
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Backend Python (Django)
+  backend:
+    build: ./backend
+    container_name: adrware_backend
+    restart: always
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  # 3. Frontend Web (React.js / Vite - adrware-web)
+  frontend-web:
+    build: ./adrware-web
+    container_name: adrware_web
+    restart: always
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./adrware-web:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://192.168.88.21:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

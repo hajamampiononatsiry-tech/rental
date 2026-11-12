@@ -1,0 +1,11 @@
+django>=4.2,<5.0
+djangorestframework
+djangorestframework-simplejwt
+django-rest-passwordreset
+django-cors-headers
+psycopg[binary]
+python-decouple
+Pillow
+gunicorn
+dj-database-url
+whitenoise

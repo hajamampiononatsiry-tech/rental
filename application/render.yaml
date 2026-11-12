@@ -1,0 +1,15 @@
+envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adrware-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: EMAIL_HOST_USER
+        value: "adrwarecontact@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        sync: false   # Indique à Render que tu la saisis sur leur site web
+      - key: GEMINI_API_KEY
+        sync: false   # Indique à Render que tu la saisis sur leur site web
