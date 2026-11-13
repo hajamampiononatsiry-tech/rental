@@ -149,6 +149,23 @@ export default function UserProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Fonction utilitaire pour résoudre l'URL de l'image (locale blob ou absolue backend)
+  const resolveImageUrl = (pathOrUrl) => {
+    if (!pathOrUrl) return null;
+    if (pathOrUrl.startsWith('blob:') || pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http')) {
+      return pathOrUrl;
+    }
+    // Si c'est un chemin relatif renvoyé par le backend Django, on le rattache au domaine de l'API
+    const baseUrl = import.meta.env.VITE_API_URL || (
+      typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
+        ? 'https://adrware-backend.onrender.com'
+        : 'http://localhost:8000'
+    );
+    // Nettoyer les doublons de slash potentiels
+    const cleanBase = baseUrl.replace(/\/api\/?$/, '');
+    return `${cleanBase}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
+  };
+
   useEffect(() => {
     fetchUserProfile();
   }, []);
@@ -159,6 +176,7 @@ export default function UserProfile() {
       const response = await api.get('accounts/me/');
       const data = response.data;
       
+      const picUrl = data.profile_picture || null;
       setFormData({
         firstName: data.first_name || '',
         lastName: data.last_name || '',
@@ -166,9 +184,9 @@ export default function UserProfile() {
         phone: data.phone_number || '',
         address: data.address || '',
         role: texts.defaultRole,
-        profilePicture: data.profile_picture || null
+        profilePicture: picUrl
       });
-      setPreviewImage(data.profile_picture || null);
+      setPreviewImage(resolveImageUrl(picUrl));
     } catch (err) {
       toast.error(texts.errorLoad);
     } finally {
@@ -185,7 +203,7 @@ export default function UserProfile() {
     const file = e.target.files[0];
     if (file) {
       setSelectedFile(file);
-      setPreviewImage(URL.createObjectURL(file));
+      setPreviewImage(URL.createObjectURL(file)); // Aperçu local instantané sans erreur réseau
     }
   };
 
@@ -222,7 +240,7 @@ export default function UserProfile() {
         ...prev,
         profilePicture: updatedPic
       }));
-      setPreviewImage(updatedPic);
+      setPreviewImage(resolveImageUrl(updatedPic));
 
       setIsEditing(false);
       setSelectedFile(null);
@@ -299,7 +317,7 @@ export default function UserProfile() {
               onClick={() => {
                 setIsEditing(false);
                 setSelectedFile(null);
-                setPreviewImage(formData.profilePicture);
+                setPreviewImage(resolveImageUrl(formData.profilePicture));
               }}
               className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
             >
