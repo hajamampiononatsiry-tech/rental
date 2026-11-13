@@ -26,7 +26,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import logo from '../assets/logo.png'; 
-import api from '../services/api';
+import api from '../services/api'; // Instance Axios configurée
 
 export default function Layout({ children }) {
   const { darkMode, toggleDarkMode } = useTheme();
@@ -34,26 +34,15 @@ export default function Layout({ children }) {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Gestion du menu déroulant et des notifications dynamiques
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const dropdownRef = useRef(null);
+
+  // Verrou pour empêcher l'accumulation des requêtes en attente
   const isFetchingRef = useRef(false);
 
-  // Fonction utilitaire pour résoudre l'URL de l'image (absolue backend)
-  const resolveImageUrl = (pathOrUrl) => {
-    if (!pathOrUrl) return null;
-    if (pathOrUrl.startsWith('blob:') || pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http')) {
-      return pathOrUrl;
-    }
-    const baseUrl = import.meta.env.VITE_API_URL || (
-      typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
-        ? 'https://adrware-backend.onrender.com'
-        : 'http://localhost:8000'
-    );
-    const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-    return `${cleanBase}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
-  };
-
+  // Fonction pour récupérer et filtrer les notifications depuis l'API Django de manière sécurisée
   const fetchNotifications = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -62,12 +51,15 @@ export default function Layout({ children }) {
       const response = await api.get('notifications/');
       if (response.data) {
         const allowedTypes = ['panne', 'proposition', 'inscription', 'reservation', 'paiement'];
+        
         const filteredData = response.data.filter(n => {
           const typeLower = (n.type || '').toLowerCase();
           const titleLower = (n.title || '').toLowerCase();
           const messageLower = (n.message || '').toLowerCase();
+          
           const matchesType = allowedTypes.some(t => typeLower.includes(t));
           const matchesKeywords = allowedTypes.some(kw => titleLower.includes(kw) || messageLower.includes(kw));
+          
           return matchesType || matchesKeywords;
         });
 
@@ -87,10 +79,12 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     fetchNotifications();
+    // Polling sécurisé toutes les 10 secondes pour laisser le temps au serveur Render de répondre
     const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, []);
 
+  // Fermer le menu des notifications lors d'un clic extérieur
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -130,38 +124,49 @@ export default function Layout({ children }) {
 
   const getNotificationStyle = (type, unread) => {
     const typeLower = (type || '').toLowerCase();
+    
     if (typeLower.includes('panne') || typeLower.includes('maintenance')) {
       return {
         icon: <Wrench className="w-4 h-4 text-red-600 dark:text-red-400" />,
         badgeBg: 'bg-red-100 dark:bg-red-900/40',
-        containerClass: unread ? 'bg-red-50/90 dark:bg-red-950/40 border-l-4 border-red-600 font-semibold' : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
+        containerClass: unread 
+          ? 'bg-red-50/90 dark:bg-red-950/40 border-l-4 border-red-600 font-semibold' 
+          : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
       };
     }
     if (typeLower.includes('proposition')) {
       return {
         icon: <Mail className="w-4 h-4 text-amber-600 dark:text-amber-400" />,
         badgeBg: 'bg-amber-100 dark:bg-amber-900/40',
-        containerClass: unread ? 'bg-amber-50/90 dark:bg-amber-950/40 border-l-4 border-amber-600 font-semibold' : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
+        containerClass: unread 
+          ? 'bg-amber-50/90 dark:bg-amber-950/40 border-l-4 border-amber-600 font-semibold' 
+          : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
       };
     }
     if (typeLower.includes('paiement')) {
       return {
         icon: <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />,
         badgeBg: 'bg-emerald-100 dark:bg-emerald-900/40',
-        containerClass: unread ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-l-4 border-emerald-600 font-semibold' : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
+        containerClass: unread 
+          ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-l-4 border-emerald-600 font-semibold' 
+          : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
       };
     }
     if (typeLower.includes('inscription') || typeLower.includes('client')) {
       return {
         icon: <UserPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />,
         badgeBg: 'bg-purple-100 dark:bg-purple-900/40',
-        containerClass: unread ? 'bg-purple-50/90 dark:bg-purple-950/40 border-l-4 border-purple-600 font-semibold' : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
+        containerClass: unread 
+          ? 'bg-purple-50/90 dark:bg-purple-950/40 border-l-4 border-purple-600 font-semibold' 
+          : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
       };
     }
     return {
       icon: <ShoppingBag className="w-4 h-4 text-blue-600 dark:text-blue-400" />,
       badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
-      containerClass: unread ? 'bg-blue-50/90 dark:bg-blue-950/40 border-l-4 border-blue-600 font-semibold' : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
+      containerClass: unread 
+        ? 'bg-blue-50/90 dark:bg-blue-950/40 border-l-4 border-blue-600 font-semibold' 
+        : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
     };
   };
 
@@ -171,6 +176,10 @@ export default function Layout({ children }) {
     initials: 'AD',
     photoUrl: null
   });
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
 
   const fetchUserData = async () => {
     try {
@@ -183,7 +192,7 @@ export default function Layout({ children }) {
         name: fullName,
         email: data.email || '',
         initials: initials.toUpperCase(),
-        photoUrl: resolveImageUrl(data.profile_picture)
+        photoUrl: data.profile_picture || null
       });
     } catch (error) {
       console.error('Erreur de chargement du profil admin :', error);
@@ -193,22 +202,11 @@ export default function Layout({ children }) {
           name: `${storedUser.first_name || ''} ${storedUser.last_name || ''}`.trim() || 'Administrateur',
           email: storedUser.email,
           initials: 'AD',
-          photoUrl: resolveImageUrl(storedUser.profile_picture)
+          photoUrl: storedUser.profile_picture || null
         });
       }
     }
   };
-
-  useEffect(() => {
-    fetchUserData();
-
-    // Écouter l'événement de mise à jour du profil pour rafraîchir la sidebar instantanément
-    const handleProfileUpdate = () => {
-      fetchUserData();
-    };
-    window.addEventListener('profileUpdated', handleProfileUpdate);
-    return () => window.removeEventListener('profileUpdated', handleProfileUpdate);
-  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -238,7 +236,7 @@ export default function Layout({ children }) {
       >
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="absolute -right-3 top-20 bg-blue-600 text-white p-1 rounded-full shadow-md hover:bg-blue-700 transition-colors z-10 cursor-pointer"
+          className="absolute -right-3 top-20 bg-blue-600 text-white p-1 rounded-full shadow-md hover:bg-blue-700 transition-colors z-10"
         >
           {isSidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
@@ -295,8 +293,7 @@ export default function Layout({ children }) {
                   <img 
                     src={currentUser.photoUrl} 
                     alt={currentUser.name} 
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                    className="w-10 h-10 rounded-full object-cover border border-blue-500/30 shrink-0"
+                    className="w-10 h-10 rounded-full object-cover border border-blue-500/30"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-bold text-sm flex items-center justify-center shrink-0 border border-blue-500/20">
@@ -331,7 +328,6 @@ export default function Layout({ children }) {
                   <img 
                     src={currentUser.photoUrl} 
                     alt={currentUser.name} 
-                    onError={(e) => { e.target.style.display = 'none'; }}
                     className="w-9 h-9 rounded-full object-cover border border-blue-500/30"
                   />
                 ) : (
@@ -361,6 +357,7 @@ export default function Layout({ children }) {
           </h2>
 
           <div className="flex items-center gap-4">
+            {/* Langue */}
             <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg px-2 py-1">
               <Globe className="w-4 h-4 mr-1 text-gray-500 dark:text-gray-400" />
               <select
@@ -374,18 +371,21 @@ export default function Layout({ children }) {
               </select>
             </div>
 
+            {/* Mode Sombre / Clair */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               title={t('theme')}
             >
               {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
             </button>
 
+            {/* CLOCHE DE NOTIFICATION FILTRÉE & SYNCHRONISÉE */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors relative cursor-pointer"
+                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors relative"
+                title={language === 'mg' ? 'Fampandrenesana' : language === 'en' ? 'Notifications' : 'Notifications'}
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -395,18 +395,20 @@ export default function Layout({ children }) {
                 )}
               </button>
 
+              {/* Menu déroulant des notifications */}
               {isNotificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
                   <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                     <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
-                      Notifications en direct
+                      {language === 'mg' ? 'Fampandrenesana mivantana' : language === 'en' ? 'Live Notifications' : 'Notifications en direct'}
                     </span>
                     {unreadCount > 0 && (
                       <button 
                         onClick={markAllAsRead}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
                       >
-                        <CheckCircle className="w-3 h-3" /> Tout marquer lu
+                        <CheckCircle className="w-3 h-3" /> 
+                        {language === 'mg' ? 'Mariho ho voavaky daholo' : language === 'en' ? 'Mark all as read' : 'Tout marquer lu'}
                       </button>
                     )}
                   </div>
@@ -425,9 +427,11 @@ export default function Layout({ children }) {
                               {n.unread && (
                                 <span className="absolute right-3 top-3 w-2 h-2 bg-blue-600 rounded-full animate-ping"></span>
                               )}
+
                               <div className={`p-1.5 rounded-lg ${styleInfo.badgeBg} shrink-0 mt-0.5`}>
                                 {styleInfo.icon}
                               </div>
+
                               <div className="flex-1 min-w-0 pr-3">
                                 <div className="flex items-start justify-between">
                                   <p className={`text-xs truncate ${n.unread ? 'font-bold text-gray-900 dark:text-white' : 'font-medium text-gray-500 dark:text-gray-400'}`}>
@@ -447,7 +451,7 @@ export default function Layout({ children }) {
                       })
                     ) : (
                       <div className="p-4 text-center text-xs text-gray-500 dark:text-gray-400">
-                        Aucune nouvelle notification
+                        {language === 'mg' ? 'Tsy misy fampandrenesana vaovao' : language === 'en' ? 'No new notifications' : 'Aucune nouvelle notification'}
                       </div>
                     )}
                   </div>
@@ -458,7 +462,7 @@ export default function Layout({ children }) {
                       onClick={handleViewAllReservations}
                       className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline block py-1"
                     >
-                      Voir toutes les commandes
+                      {language === 'mg' ? 'Jereo daholo ny famandrihana' : language === 'en' ? 'View all orders' : 'Voir toutes les commandes'}
                     </Link>
                   </div>
                 </div>
