@@ -111,7 +111,7 @@ class RegisterView(generics.CreateAPIView):
         # CAS 1 : Compte Staff / Admin -> Activation manuelle par adrwarecontact@gmail.com
         if user.is_staff or user.is_superuser:
             try:
-                activation_url = f"http://localhost:8000/api/accounts/activate/{user.id}/"
+                activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
                 subject = "🔔 Nouveau compte Staff/Admin en attente d'activation - ADRWARE"
                 message = (
                     f"Bonjour Super-Admin,\n\n"

@@ -7,7 +7,13 @@ import * as XLSX from 'xlsx';
 import toast, { Toaster } from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 
-const API_URL = 'http://localhost:8000/api/cars/';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
+    ? 'https://adrware-backend.onrender.com/api'
+    : 'http://localhost:8000/api'
+);
+
+const API_URL = `${API_BASE_URL}/cars/`;
 
 export default function Catalogue() {
   const { t } = useLanguage();
@@ -667,7 +673,6 @@ export default function Catalogue() {
             </div>
 
             <div id="printable-vehicle-sheet" className="p-8 space-y-6 overflow-y-auto bg-white text-gray-900">
-              {/* En-tête avec Logo bien arrondi placé avant le titre et le libellé */}
               <div className="flex justify-between items-center border-b-2 border-slate-900 pb-6">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-full overflow-hidden bg-white border-2 border-blue-600 shadow-md flex items-center justify-center shrink-0">
@@ -744,7 +749,6 @@ export default function Catalogue() {
                 </div>
               </div>
 
-              {/* Première Photo Unique */}
               <div>
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{t('vehicle_visual') || 'Visuel du Véhicule'}</h4>
                 {viewingCar.photos && viewingCar.photos.length > 0 ? (

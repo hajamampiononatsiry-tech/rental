@@ -160,8 +160,12 @@ export default function Dashboard() {
     topCars: []
   });
 
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const API_BASE_URL = `http://${currentHost}:8000/api`;
+  // Utilisation sécurisée de l'URL de l'API (prend l'env var ou bascule dynamiquement sans forcer le port 8000 en production)
+  const API_BASE_URL = import.meta.env.VITE_API_URL || (
+    typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
+      ? 'https://adrware-backend.onrender.com/api'
+      : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8000/api`
+  );
 
   const fetchDashboardData = async (selectedPeriod = 'day', isBackground = false) => {
     try {
@@ -278,7 +282,8 @@ export default function Dashboard() {
       return imagePath;
     }
     const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-    return `http://${currentHost}:8000${cleanPath}`;
+    const baseHost = API_BASE_URL.replace('/api', '');
+    return `${baseHost}${cleanPath}`;
   };
 
   return (
@@ -307,7 +312,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* TOP 3 DES VOITURES AVEC PLAQUE ET PRIX PAR JOUR (STYLES: Or = dorée, Argent = bleu, Bronze = ombre gris) */}
+      {/* TOP 3 DES VOITURES AVEC PLAQUE ET PRIX PAR JOUR */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/80">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-500/20 shadow-xs">
@@ -322,7 +327,6 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {statsData.topCars && statsData.topCars.length > 0 ? (
             statsData.topCars.slice(0, 3).map((car, index) => {
-              // 1er: Or (dorée), 2ème: Argent (bleu), 3ème: Bronze (ombre gris)
               const medals = [
                 { 
                   badgeBg: "bg-amber-400 text-amber-950 font-black ring-2 ring-amber-200", 
@@ -382,7 +386,6 @@ export default function Dashboard() {
                       </h3>
                     </div>
 
-                    {/* Plaque et Prix par jour */}
                     <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 dark:border-gray-700/60">
                       <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-mono text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700">
                         {carPlate}
