@@ -29,11 +29,23 @@ import * as XLSX from 'xlsx';
 import toast, { Toaster } from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 
-const CURRENT_HOST = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-const API_BASE_URL = `http://${CURRENT_HOST}:8000/api/reservations/`;
-const API_CARS_URL = `http://${CURRENT_HOST}:8000/api/cars/`;
-const API_CLIENTS_URL = `http://${CURRENT_HOST}:8000/api/clients/`;
-const API_MAINTENANCES_URL = `http://${CURRENT_HOST}:8000/api/maintenances/`;
+const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+
+const API_BASE_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/reservations/'
+  : 'http://127.0.0.1:8000/api/reservations/';
+
+const API_CARS_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/cars/'
+  : 'http://127.0.0.1:8000/api/cars/';
+
+const API_CLIENTS_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/clients/'
+  : 'http://127.0.0.1:8000/api/clients/';
+
+const API_MAINTENANCES_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/maintenances/'
+  : 'http://127.0.0.1:8000/api/maintenances/';
 
 const DEFAULT_CAR_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=300&q=80';
 
