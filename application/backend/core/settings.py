@@ -54,7 +54,7 @@ INSTALLED_APPS = [
     'clients',
     'chatbot',
     'accounts',
-'notifications',  # <--- Virgule bien ajoutée ici
+    'notifications', 
 ]
 
 # Configuration Cloudinary moderne
