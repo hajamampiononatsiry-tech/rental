@@ -39,12 +39,17 @@ export default function Layout({ children }) {
   const [notifications, setNotifications] = useState([]);
   const dropdownRef = useRef(null);
 
-  // Fonction pour récupérer et filtrer les notifications depuis l'API Django
+  // Verrou pour empêcher l'accumulation des requêtes en attente
+  const isFetchingRef = useRef(false);
+
+  // Fonction pour récupérer et filtrer les notifications depuis l'API Django de manière sécurisée
   const fetchNotifications = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
       const response = await api.get('notifications/');
       if (response.data) {
-        // FILTRAGE STRICT : On ne garde que Panne, Proposition, Inscription, Réservation, Paiement
         const allowedTypes = ['panne', 'proposition', 'inscription', 'reservation', 'paiement'];
         
         const filteredData = response.data.filter(n => {
@@ -52,31 +57,30 @@ export default function Layout({ children }) {
           const titleLower = (n.title || '').toLowerCase();
           const messageLower = (n.message || '').toLowerCase();
           
-          // Vérifie si le type ou le contenu correspond aux critères demandés
           const matchesType = allowedTypes.some(t => typeLower.includes(t));
           const matchesKeywords = allowedTypes.some(kw => titleLower.includes(kw) || messageLower.includes(kw));
           
           return matchesType || matchesKeywords;
         });
 
-        // Formatage et prise en compte du statut lu/non lu partagé par le backend
         const formatted = filteredData.map(n => ({
           ...n,
-          unread: !n.is_read // Utilise directement le champ serveur pour que ce soit synchro pour toute l'équipe
+          unread: !n.is_read
         }));
 
-        // Inverser l'ordre pour afficher les plus récents en haut
         setNotifications(formatted.reverse());
       }
     } catch (error) {
       console.error("Erreur lors de la récupération des notifications :", error);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
     fetchNotifications();
-    // Actualisation automatique toutes les 3 secondes pour le temps réel en commun
-    const interval = setInterval(fetchNotifications, 3000);
+    // Polling sécurisé toutes les 10 secondes pour laisser le temps au serveur Render de répondre
+    const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -91,15 +95,10 @@ export default function Layout({ children }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Compter les notifications non lues
   const unreadCount = notifications.filter(n => n.unread).length;
 
-  // Marquer tout comme lu (Mise à jour visuelle immédiate + synchro serveur)
   const markAllAsRead = async () => {
-    // 1. Mise à jour instantanée de l'interface pour tous
     setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
-
-    // 2. Appel au serveur Django en arrière-plan
     try {
       await api.post('notifications/mark-all-read/');
     } catch (error) {
@@ -107,14 +106,10 @@ export default function Layout({ children }) {
     }
   };
 
-  // Marquer une notification spécifique comme lue (Mise à jour visuelle immédiate + synchro serveur)
   const markAsRead = async (id) => {
-    // 1. Mise à jour instantanée de l'interface pour éviter le retour en arrière par le timer de 3s
     setNotifications(prev =>
       prev.map(n => String(n.id) === String(id) ? { ...n, unread: false } : n)
     );
-
-    // 2. Appel au serveur Django pour enregistrer l'état pour toute l'équipe
     try {
       await api.post(`notifications/${id}/mark-read/`);
     } catch (error) {
@@ -127,7 +122,6 @@ export default function Layout({ children }) {
     setIsNotificationsOpen(false);
   };
 
-  // Styles et icônes adaptés selon le type filtré (Panne, Proposition, Inscription, Réservation, Paiement)
   const getNotificationStyle = (type, unread) => {
     const typeLower = (type || '').toLowerCase();
     
@@ -167,7 +161,6 @@ export default function Layout({ children }) {
           : 'bg-white dark:bg-gray-800 opacity-60 border-l-4 border-transparent hover:opacity-100'
       };
     }
-    // Par défaut : Réservation
     return {
       icon: <ShoppingBag className="w-4 h-4 text-blue-600 dark:text-blue-400" />,
       badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
@@ -177,7 +170,6 @@ export default function Layout({ children }) {
     };
   };
 
-  // État local pour l'utilisateur connecté
   const [currentUser, setCurrentUser] = useState({
     name: 'Chargement...',
     email: '',
@@ -432,12 +424,10 @@ export default function Layout({ children }) {
                             className={`p-3 cursor-pointer transition-all relative ${styleInfo.containerClass}`}
                           >
                             <div className="flex items-start gap-2.5">
-                              {/* Point indicateur bleu clignotant pour le non-lu */}
                               {n.unread && (
                                 <span className="absolute right-3 top-3 w-2 h-2 bg-blue-600 rounded-full animate-ping"></span>
                               )}
 
-                              {/* Logo / Icône avec fond coloré */}
                               <div className={`p-1.5 rounded-lg ${styleInfo.badgeBg} shrink-0 mt-0.5`}>
                                 {styleInfo.icon}
                               </div>
