@@ -313,6 +313,7 @@ export default function UserProfile() {
               <img 
                 src={previewImage} 
                 alt="Profil" 
+                onError={() => setPreviewImage(null)}
                 className="w-24 h-24 rounded-full object-cover border-2 border-blue-500/20 shadow-sm"
               />
             ) : (
