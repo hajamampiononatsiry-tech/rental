@@ -694,7 +694,7 @@ export default function Clients() {
                         <div className="flex items-center gap-3">
                           {clientImage ? (
                             <img 
-                              src={clientImage.startsWith('http') ? clientImage : `http://127.0.0.1:8000${clientImage}`} 
+                              src={clientImage.startsWith('http') ? clientImage : `https://adrware-backend.onrender.com${clientImage.startsWith('/') ? '' : '/'}${clientImage}`} 
                               alt={displayName} 
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shrink-0 shadow-sm" 
                             />
@@ -879,7 +879,11 @@ export default function Clients() {
                 <div className="relative group cursor-pointer" onClick={() => imageInputRef.current?.click()}>
                   {formData.imagePreview ? (
                     <img 
-                      src={formData.imagePreview.startsWith('http') || formData.imagePreview.startsWith('blob') ? formData.imagePreview : `http://127.0.0.1:8000${formData.imagePreview}`} 
+                      src={
+                        formData.imagePreview.startsWith('http') || formData.imagePreview.startsWith('blob') 
+                          ? formData.imagePreview 
+                          : `https://adrware-backend.onrender.com${formData.imagePreview.startsWith('/') ? '' : '/'}${formData.imagePreview}`
+                      } 
                       alt="Aperçu" 
                       className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-md" 
                     />

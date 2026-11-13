@@ -45,21 +45,21 @@ class ClientSerializer(serializers.ModelSerializer):
         }
 
     def get_image(self, obj):
-        # 1. On cherche d'abord si une image existe directement sur la fiche Client
         img = getattr(obj, 'image', None)
-        
-        # 2. Si non trouvée, on vérifie si l'utilisateur rattaché a une photo (profile_picture ou image)
         if not img and hasattr(obj, 'user') and obj.user:
             img = getattr(obj.user, 'profile_picture', None) or getattr(obj.user, 'image', None)
 
-        # 3. Si une image existe, on renvoie l'URL absolue
         if img:
+            try:
+                url = img.url
+            except Exception:
+                return None
+
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(img.url)
+                return request.build_absolute_uri(url)
             
+            # Fallback direct si le request context est manquant
+            return f"https://adrware-backend.onrender.com{url}"
             
         return None
-
-    def get_profile_picture(self, obj):
-        return self.get_image(obj)
