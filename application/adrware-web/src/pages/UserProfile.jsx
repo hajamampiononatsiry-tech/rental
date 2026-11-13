@@ -21,7 +21,6 @@ import { useLanguage } from '../context/LanguageContext';
 export default function UserProfile() {
   const { language } = useLanguage();
 
-  // Dictionnaire de traductions (EN, FR, MG)
   const t = {
     fr: {
       title: "Profil Utilisateur",
@@ -267,7 +266,6 @@ export default function UserProfile() {
     );
   }
 
-  // Calcul des initiales pour le badge de secours
   const initial1 = (formData.firstName ? formData.firstName.charAt(0) : '') || '';
   const initial2 = (formData.lastName ? formData.lastName.charAt(0) : '') || '';
   const userInitials = (initial1 + initial2).toUpperCase() || 'A';
