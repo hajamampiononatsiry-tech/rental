@@ -54,12 +54,18 @@ INSTALLED_APPS = [
     'clients',
     'chatbot',
     'accounts',
-    'notifications',
-
-
+'notifications',  # <--- Virgule bien ajoutée ici
 ]
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Configuration Cloudinary moderne
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
