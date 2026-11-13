@@ -31,6 +31,15 @@ import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const API_BASE_URL ='https://adrware-backend.onrender.com/api/clients/'
+
+// Fonction utilitaire sécurisée pour formater l'URL de l'image
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http') || imagePath.startsWith('blob')) {
+    return imagePath;
+  }
+  return `https://adrware-backend.onrender.com${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+};
  
 export default function Clients() {
   const { t } = useLanguage();
@@ -661,7 +670,7 @@ export default function Clients() {
                   const spentAmount = client.totalSpent ?? client.total_spent ?? 0;
                   const isBanned = client.isBanned ?? client.is_banned ?? false;
                   const banReason = client.banReason || client.ban_reason || '';
-                  const clientImage = client.image || client.profile_picture || null;
+                  const clientImage = getImageUrl(client.image || client.profile_picture);
 
                   const loyalty = getLoyaltyDetails(rentalsCount, isBanned);
                   const BadgeIcon = loyalty.icon;
@@ -694,11 +703,7 @@ export default function Clients() {
                         <div className="flex items-center gap-3">
                           {clientImage ? (
                             <img 
-                              src={
-                                clientImage.startsWith('http') 
-                                  ? clientImage 
-                                  : `https://adrware-backend.onrender.com${clientImage.startsWith('/') ? '' : '/'}${clientImage}`
-                              } 
+                              src={clientImage} 
                               alt={displayName} 
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shrink-0 shadow-sm" 
                             />
@@ -883,11 +888,7 @@ export default function Clients() {
                 <div className="relative group cursor-pointer" onClick={() => imageInputRef.current?.click()}>
                   {formData.imagePreview ? (
                     <img 
-                      src={
-                        formData.imagePreview.startsWith('http') || formData.imagePreview.startsWith('blob') 
-                          ? formData.imagePreview 
-                          : `https://adrware-backend.onrender.com${formData.imagePreview.startsWith('/') ? '' : '/'}${formData.imagePreview}`
-                      } 
+                      src={getImageUrl(formData.imagePreview)} 
                       alt="Aperçu" 
                       className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-md" 
                     />
