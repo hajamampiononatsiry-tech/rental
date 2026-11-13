@@ -218,10 +218,12 @@ export default function UserProfile() {
       const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
       localStorage.setItem('user', JSON.stringify({ ...storedUser, ...response.data }));
 
+      const updatedPic = response.data.profile_picture || null;
       setFormData(prev => ({
         ...prev,
-        profilePicture: response.data.profile_picture || prev.profilePicture
+        profilePicture: updatedPic
       }));
+      setPreviewImage(updatedPic);
 
       setIsEditing(false);
       setSelectedFile(null);
@@ -264,6 +266,11 @@ export default function UserProfile() {
       </div>
     );
   }
+
+  // Calcul des initiales pour le badge de secours
+  const initial1 = (formData.firstName ? formData.firstName.charAt(0) : '') || '';
+  const initial2 = (formData.lastName ? formData.lastName.charAt(0) : '') || '';
+  const userInitials = (initial1 + initial2).toUpperCase() || 'A';
 
   return (
     <div className="space-y-6 font-sans max-w-4xl mx-auto p-4 md:p-6">
@@ -318,7 +325,7 @@ export default function UserProfile() {
               />
             ) : (
               <div className="w-24 h-24 rounded-full bg-blue-50 dark:bg-blue-950/60 border-2 border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-3xl">
-                {(formData.firstName.charAt(0) || 'A')}{(formData.lastName.charAt(0) || '')}
+                {userInitials}
               </div>
             )}
             
