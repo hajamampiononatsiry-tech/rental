@@ -364,19 +364,20 @@ export default function Clients() {
     e.preventDefault();
 
     if (!formData.last_name || formData.last_name.trim().length < 2) {
-      toast.error(t('error_name_min') || "Le nom doit comporter au moins 2 caractères.");
+      toast.error("Le nom doit comporter au moins 2 caractères.");
       return;
     }
 
     const phoneClean = formData.phone.replace(/\D/g, '');
     if (phoneClean.length !== 10) {
-      toast.error(t('error_phone_digits') || "Le numéro de téléphone doit comporter exactement 10 chiffres.");
+      toast.error("Le numéro de téléphone doit comporter exactement 10 chiffres.");
       return;
     }
 
     const url = editingClient ? `${API_BASE_URL}${editingClient.id}/` : API_BASE_URL;
     const method = editingClient ? 'PATCH' : 'POST';
 
+    // 1. Création de l'objet FormData pour supporter les fichiers
     const dataForm = new FormData();
     dataForm.append('last_name', formData.last_name.trim());
     dataForm.append('first_name', formData.first_name ? formData.first_name.trim() : '');
@@ -388,7 +389,8 @@ export default function Clients() {
     dataForm.append('is_banned', formData.isBanned);
     dataForm.append('ban_reason', formData.isBanned ? formData.banReason : '');
     
-    if (formData.image) {
+    // 2. Ajout crucial du fichier image s'il a été sélectionné
+    if (formData.image instanceof File) {
       dataForm.append('image', formData.image);
     }
 
@@ -396,12 +398,14 @@ export default function Clients() {
       const response = await fetch(url, {
         method,
         body: dataForm,
+        // IMPORTANT : Ne PAS mettre de header 'Content-Type': 'application/json' ici, 
+        // fetch gère automatiquement le boundary pour le multipart/form-data avec FormData.
       });
 
       if (response.ok) {
         await fetchClients(false);
         setIsModalOpen(false);
-        toast.success(editingClient ? (t('success_update') || "Client modifié avec succès !") : (t('success_add') || "Client ajouté avec succès !"));
+        toast.success(editingClient ? "Client modifié avec succès !" : "Client ajouté avec succès !");
       } else {
         const errorData = await response.json();
         toast.error(`Erreur d'enregistrement : ${JSON.stringify(errorData)}`);
