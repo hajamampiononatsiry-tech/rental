@@ -188,7 +188,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 
 # Email Configuration (SMTP actif pour l'envoi réel des factures par Gmail)
-EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
