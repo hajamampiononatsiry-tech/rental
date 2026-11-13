@@ -30,12 +30,8 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (
-  typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
-    ? 'https://adrware-backend.onrender.com/api/clients/'
-    : 'http://127.0.0.1:8000/api/clients/'
-);
-
+const API_BASE_URL ='https://adrware-backend.onrender.com/api/clients/'
+ 
 export default function Clients() {
   const { t } = useLanguage();
   const fileInputRef = useRef(null);
