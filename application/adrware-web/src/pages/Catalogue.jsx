@@ -13,7 +13,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (
     : 'http://localhost:8000/api'
 );
 
-const API_URL = `${API_BASE_URL}/cars/`;
+const API_URL = `${API_BASE_URL.replace(/\/+$/, '')}/cars/`;
 
 export default function Catalogue() {
   const { t } = useLanguage();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Car, 
   ShoppingBag, 
@@ -160,14 +160,19 @@ export default function Dashboard() {
     topCars: []
   });
 
-  // Utilisation sécurisée de l'URL de l'API (prend l'env var ou bascule dynamiquement sans forcer le port 8000 en production)
   const API_BASE_URL = import.meta.env.VITE_API_URL || (
     typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
       ? 'https://adrware-backend.onrender.com/api'
       : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8000/api`
   );
 
+  // Utilisation d'un verrou pour empêcher d'empiler les requêtes si le serveur met du temps à répondre
+  const isFetchingRef = useRef(false);
+
   const fetchDashboardData = async (selectedPeriod = 'day', isBackground = false) => {
+    if (isFetchingRef.current) return; // Si une requête est déjà en cours, on ignore celle-ci
+    isFetchingRef.current = true;
+
     try {
       if (!isBackground) setLoading(true);
       const res = await fetch(`${API_BASE_URL}/dashboard-stats/?period=${selectedPeriod}`);
@@ -189,14 +194,18 @@ export default function Dashboard() {
       console.error("Erreur lors de la récupération des données :", error);
     } finally {
       if (!isBackground) setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
     fetchDashboardData(period, false);
+    
+    // Polling sécurisé : on relance une mise à jour toutes les 5 secondes UNIQUEMENT si la précédente est finie
     const interval = setInterval(() => {
       fetchDashboardData(period, true);
-    }, 3000);
+    }, 5000);
+
     return () => clearInterval(interval);
   }, [period]);
 
@@ -515,7 +524,7 @@ export default function Dashboard() {
 
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {order.client}
+                            {client_name_fix(order.client)}
                           </p>
                           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                             <span className="font-medium text-gray-700 dark:text-gray-300 truncate">{order.car}</span>
@@ -551,4 +560,9 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+// Petite fonction utilitaire de sécurité pour le nom du client
+function client_name_fix(name) {
+  return name || 'Client';
 }
