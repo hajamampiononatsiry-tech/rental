@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
 from rest_framework.routers import DefaultRouter
 
 from fleet.views import CarViewSet
@@ -12,14 +13,12 @@ from clients.views import ClientViewSet
 from notifications.views import get_admin_notifications
 from facture.views import verify_invoice_view
 
-
 router = DefaultRouter()
 router.register(r'cars', CarViewSet, basename='car')
 router.register(r'factures', FactureViewSet, basename='facture')
 router.register(r'reservations', ReservationViewSet, basename='reservation')
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'maintenances', MaintenanceViewSet, basename='maintenance')  
-
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,11 +30,10 @@ urlpatterns = [
     path('api/chatbot/', include('chatbot.urls')),
     path('api/notifications/', get_admin_notifications, name='admin-notifications'),
     path('api/accounts/', include('accounts.urls')),
-     path('verify/', verify_invoice_view, name='verify_invoice'),
-    
+    path('verify/', verify_invoice_view, name='verify_invoice'),
 ]
 
-# Support de la lecture des fichiers médias (images des voitures) en mode dev
+# Servir les fichiers médias en production sur Render et en local
 urlpatterns += [
     re_path(r'^media/(?P<path>.*)$', serve, {
         'document_root': settings.MEDIA_ROOT,
