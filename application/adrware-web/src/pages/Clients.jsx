@@ -694,7 +694,11 @@ export default function Clients() {
                         <div className="flex items-center gap-3">
                           {clientImage ? (
                             <img 
-                              src={clientImage.startsWith('http') ? clientImage : `https://adrware-backend.onrender.com${clientImage.startsWith('/') ? '' : '/'}${clientImage}`} 
+                              src={
+                                clientImage.startsWith('http') 
+                                  ? clientImage 
+                                  : `https://adrware-backend.onrender.com${clientImage.startsWith('/') ? '' : '/'}${clientImage}`
+                              } 
                               alt={displayName} 
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shrink-0 shadow-sm" 
                             />

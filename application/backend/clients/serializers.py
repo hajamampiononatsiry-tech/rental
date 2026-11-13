@@ -1,4 +1,3 @@
-# clients/serializers.py
 from rest_framework import serializers
 from .models import Client
 
@@ -51,15 +50,22 @@ class ClientSerializer(serializers.ModelSerializer):
 
         if img:
             try:
-                url = img.url
+                url = img.url if hasattr(img, 'url') else str(img)
             except Exception:
                 return None
 
             request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
+            if request is not None:
+                try:
+                    return request.build_absolute_uri(url)
+                except Exception:
+                    pass
             
-            # Fallback direct si le request context est manquant
-            return f"https://adrware-backend.onrender.com{url}"
+            if url.startswith('http'):
+                return url
+            return f"https://adrware-backend.onrender.com{url if url.startswith('/') else '/' + url}"
             
         return None
+
+    def get_profile_picture(self, obj):
+        return self.get_image(obj)
