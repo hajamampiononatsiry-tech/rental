@@ -155,13 +155,11 @@ export default function UserProfile() {
     if (pathOrUrl.startsWith('blob:') || pathOrUrl.startsWith('data:') || pathOrUrl.startsWith('http')) {
       return pathOrUrl;
     }
-    // Si c'est un chemin relatif renvoyé par le backend Django, on le rattache au domaine de l'API
     const baseUrl = import.meta.env.VITE_API_URL || (
       typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
         ? 'https://adrware-backend.onrender.com'
         : 'http://localhost:8000'
     );
-    // Nettoyer les doublons de slash potentiels
     const cleanBase = baseUrl.replace(/\/api\/?$/, '');
     return `${cleanBase}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
   };
@@ -203,7 +201,7 @@ export default function UserProfile() {
     const file = e.target.files[0];
     if (file) {
       setSelectedFile(file);
-      setPreviewImage(URL.createObjectURL(file)); // Aperçu local instantané sans erreur réseau
+      setPreviewImage(URL.createObjectURL(file));
     }
   };
 
@@ -245,6 +243,10 @@ export default function UserProfile() {
       setIsEditing(false);
       setSelectedFile(null);
       toast.success(texts.successSave);
+
+      // 👉 Déclenchement de l'événement pour mettre à jour la Sidebar en temps réel !
+      window.dispatchEvent(new Event('profileUpdated'));
+
     } catch (err) {
       toast.error(texts.errorUpdate);
     } finally {
@@ -292,7 +294,6 @@ export default function UserProfile() {
     <div className="space-y-6 font-sans max-w-4xl mx-auto p-4 md:p-6">
       <Toaster position="top-right" reverseOrder={false} />
 
-      {/* En-tête de la page */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -328,7 +329,6 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* Carte En-tête Profil */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="relative group">
@@ -376,7 +376,6 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* Formulaire des Informations Personnelles */}
       <form onSubmit={handleSubmitProfile} className="bg-white dark:bg-gray-800 rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700 space-y-6">
         <div>
           <div className="border-b border-gray-100 dark:border-gray-700 pb-3 mb-6">
@@ -477,7 +476,6 @@ export default function UserProfile() {
         )}
       </form>
 
-      {/* Section Sécurité du Compte */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="border-b border-gray-100 dark:border-gray-700 pb-3 mb-6">
           <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider">
@@ -505,7 +503,6 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* Modal Changement de mot de passe */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full border border-gray-100 dark:border-gray-700 animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
@@ -528,7 +525,6 @@ export default function UserProfile() {
             </div>
 
             <form onSubmit={handleSubmitPassword} className="p-6 space-y-5">
-              {/* Ancien mot de passe */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">{texts.oldPassword}</label>
                 <div className="relative">
@@ -551,7 +547,6 @@ export default function UserProfile() {
                 </div>
               </div>
 
-              {/* Nouveau mot de passe */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">{texts.newPassword}</label>
                 <div className="relative">
@@ -574,7 +569,6 @@ export default function UserProfile() {
                 </div>
               </div>
 
-              {/* Confirmer le nouveau mot de passe */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">{texts.confirmNewPassword}</label>
                 <div className="relative">
