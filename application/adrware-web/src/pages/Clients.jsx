@@ -35,10 +35,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (
     ? 'https://adrware-backend.onrender.com/api/clients/'
     : 'http://127.0.0.1:8000/api/clients/'
 );
+
 export default function Clients() {
   const { t } = useLanguage();
   const fileInputRef = useRef(null);
-  const imageInputRef = useRef(null); // Référence pour l'input image du formulaire
+  const imageInputRef = useRef(null);
 
   // États de l'API
   const [clients, setClients] = useState([]);
@@ -55,7 +56,7 @@ export default function Clients() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   
-  // Champs formulaire (avec image et imagePreview)
+  // Champs formulaire
   const initialFormState = { 
     last_name: '',
     first_name: '',
@@ -190,7 +191,7 @@ export default function Clients() {
     setCurrentPage(1);
   };
 
-  // Calculs de pagination
+  // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredClients.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedClients = useMemo(() => {
@@ -343,7 +344,6 @@ export default function Clients() {
     setIsModalOpen(true);
   };
 
-  // Gestion du changement d'image dans le formulaire
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -372,7 +372,6 @@ export default function Clients() {
     const url = editingClient ? `${API_BASE_URL}${editingClient.id}/` : API_BASE_URL;
     const method = editingClient ? 'PATCH' : 'POST';
 
-    // Utilisation de FormData pour supporter l'envoi de fichiers (images)
     const dataForm = new FormData();
     dataForm.append('last_name', formData.last_name.trim());
     dataForm.append('first_name', formData.first_name ? formData.first_name.trim() : '');
@@ -477,7 +476,6 @@ export default function Clients() {
 
   return (
     <div className="space-y-6 font-sans">
-      
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -862,7 +860,7 @@ export default function Clients() {
                   {editingClient ? (t('edit_client') || 'Modifier le Client') : (t('add_client') || 'Ajouter un Nouveau Client')}
                 </h2>
                 <p className="text-xs text-blue-100 font-normal">
-                  {t('create_client_sub') || "Creation client sub"}
+                  {t('create_client_sub') || "Gestion client"}
                 </p>
               </div>
               <button 
@@ -874,8 +872,6 @@ export default function Clients() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto text-sm">
-              
-              {/* CHAMP IMAGE / AVATAR DU CLIENT */}
               <div className="flex flex-col items-center justify-center pb-2 border-b border-gray-100 dark:border-gray-700/80">
                 <input 
                   type="file" 
@@ -887,7 +883,7 @@ export default function Clients() {
                 <div className="relative group cursor-pointer" onClick={() => imageInputRef.current?.click()}>
                   {formData.imagePreview ? (
                     <img 
-                      src={formData.imagePreview.startsWith('http') || formData.imagePreview.blob ? formData.imagePreview : `http://127.0.0.1:8000${formData.imagePreview}`} 
+                      src={formData.imagePreview.startsWith('http') || formData.imagePreview.startsWith('blob') ? formData.imagePreview : `http://127.0.0.1:8000${formData.imagePreview}`} 
                       alt="Aperçu" 
                       className="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow-md" 
                     />
@@ -1029,6 +1025,7 @@ export default function Clients() {
         </div>
       )}
 
+      {/* MODALE SUPPRESSION */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-gray-100 dark:border-gray-700 space-y-4">
@@ -1067,6 +1064,7 @@ export default function Clients() {
         </div>
       )}
 
+      {/* MODALE BAN / DEBAN */}
       {banModal.isOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-gray-100 dark:border-gray-700 space-y-4">
