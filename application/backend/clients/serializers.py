@@ -1,8 +1,10 @@
+# clients/serializers.py
 from rest_framework import serializers
 from .models import Client
 
 class ClientSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
+    # Déclaration explicite du champ image pour gérer l'upload de fichiers
+    image = serializers.ImageField(required=False, allow_null=True)
     profile_picture = serializers.SerializerMethodField()
     
     totalRentals = serializers.IntegerField(source='total_rentals', read_only=True)
@@ -37,13 +39,8 @@ class ClientSerializer(serializers.ModelSerializer):
             'loyaltyStatus',
             'discountPercent',
         ]
-        extra_kwargs = {
-            'phone': {'required': False, 'allow_blank': True, 'allow_null': True},
-            'address': {'required': False, 'allow_blank': True, 'allow_null': True},
-            'image': {'required': False, 'allow_null': True},
-        }
 
-    def get_image(self, obj):
+    def get_profile_picture(self, obj):
         img = getattr(obj, 'image', None)
         if not img and hasattr(obj, 'user') and obj.user:
             img = getattr(obj.user, 'profile_picture', None) or getattr(obj.user, 'image', None)
@@ -66,6 +63,3 @@ class ClientSerializer(serializers.ModelSerializer):
             return f"https://adrware-backend.onrender.com{url if url.startswith('/') else '/' + url}"
             
         return None
-
-    def get_profile_picture(self, obj):
-        return self.get_image(obj)
