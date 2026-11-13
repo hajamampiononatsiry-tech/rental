@@ -118,10 +118,14 @@ export default function Facturation() {
 
   const [serverIp, setServerIp] = useState('');
 
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const API_URL = `http://${currentHost}:8000/api/factures/`;
-  const RESERVATIONS_API_URL = `http://${currentHost}:8000/api/reservations/`;
-  const CLIENTS_API_URL = `http://${currentHost}:8000/api/clients/`;
+const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+  const API_BASE_URL = isProduction
+    ? 'https://adrware-backend.onrender.com/api'
+    : `http://${currentHost}:8000/api`;
+
+  const API_URL = `${API_BASE_URL}/factures/`;
+  const RESERVATIONS_API_URL = `${API_BASE_URL}/reservations/`;
+  const CLIENTS_API_URL = `${API_BASE_URL}/clients/`;
 
   const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
