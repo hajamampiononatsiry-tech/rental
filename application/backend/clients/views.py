@@ -1,12 +1,15 @@
+# clients/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser  # <--- AJOUTER CET IMPORT
 from django.db.models import Q
 from .models import Client
 from .serializers import ClientSerializer
 
 class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
+    parser_classes = (MultiPartParser, FormParser)  # <--- AJOUTER CETTE LIGNE POUR SUPPORTER LES IMAGES
 
     def get_queryset(self):
         # 1. Exclure les fiches clients rattachées à un compte Staff ou Superuser
