@@ -246,8 +246,10 @@ export default function MaintenancePage() {
     statut: 'Planifiée',
   });
 
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const API_BASE_URL = `http://${currentHost}:8000/api`;
+const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+  const API_BASE_URL = isProduction
+    ? 'https://adrware-backend.onrender.com/api'
+    : 'http://127.0.0.1:8000/api';
 
   useEffect(() => {
     fetchMaintenances();
