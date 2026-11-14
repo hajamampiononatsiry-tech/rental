@@ -26,16 +26,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         attrs['username'] = email_val
         attrs['email'] = email_val
         return super().validate(attrs)
-def create(self, validated_data):
+
+    def create(self, validated_data):
         is_admin = validated_data.pop('is_admin', False)
         email_val = validated_data['email']
+        password = validated_data.pop('password')
 
         user = User.objects.create_user(
             username=email_val,
             email=email_val,
+            password=password,
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            password=validated_data['password'],
             phone_number=validated_data.get('phone_number', ''),
             address=validated_data.get('address', ''),
             profile_picture=validated_data.get('profile_picture', None),
@@ -66,7 +68,9 @@ def create(self, validated_data):
         except Exception as e:
             print(f"Erreur d'envoi d'e-mail d'activation : {e}")
 
-        return user  # <--- C'est cette ligne qu'il manquait !
+        return user
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     total_rentals = serializers.SerializerMethodField()
 
@@ -77,7 +81,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_total_rentals(self, obj):
         try:
-            # Récupère le profil client associé et compte ses réservations validées[cite: 13]
             client_profile = Client.objects.filter(user=obj).first()
             if client_profile:
                 return client_profile.reservations.filter(status='Validée').count()
