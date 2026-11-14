@@ -210,9 +210,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email Configuration (SMTP actif pour l'envoi réel des factures par Gmail)
 # Gestion des e-mails sécurisée pour Render
-
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
     # Sur Render, évite le blocage réseau en écrivant les e-mails dans les logs du serveur
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
