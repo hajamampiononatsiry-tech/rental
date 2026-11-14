@@ -237,5 +237,3 @@ ORANGE_BASE_URL = config('ORANGE_BASE_URL', default='https://api.orange.com')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.CustomUser'
-
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
