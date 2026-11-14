@@ -18,9 +18,13 @@ export default function VerifyInvoice() {
       return;
     }
 
-    // Récupération dynamique de l'hôte/IP depuis l'URL courante
-    const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const API_URL = `http://${currentHost}:8000/api/factures/${rawId}/`;
+    // Utilisation de l'URL de production si on est sur Render, ou localhost en dev local
+    const isProduction = window.location.hostname.includes('onrender.com') || window.location.protocol === 'https:';
+    const API_BASE = isProduction 
+      ? 'https://adrware-backend.onrender.com' 
+      : 'http://localhost:8000';
+
+    const API_URL = `${API_BASE}/api/factures/${rawId}/`;
 
     fetch(API_URL, {
       method: 'GET',
@@ -46,7 +50,6 @@ export default function VerifyInvoice() {
         setLoading(false);
       });
   }, [rawId]);
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fr-FR').format(amount || 0);
   };
