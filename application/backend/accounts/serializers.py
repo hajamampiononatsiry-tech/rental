@@ -26,8 +26,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         attrs['username'] = email_val
         attrs['email'] = email_val
         return super().validate(attrs)
-
-    def create(self, validated_data):
+def create(self, validated_data):
         is_admin = validated_data.pop('is_admin', False)
         email_val = validated_data['email']
 
@@ -41,12 +40,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             address=validated_data.get('address', ''),
             profile_picture=validated_data.get('profile_picture', None),
             is_staff=is_admin,
-            is_verified=True,     # Validé puisqu'on supprime l'OTP
-            is_active=False       # Inactif par défaut jusqu'à activation par le super-admin
+            is_verified=True,     
+            is_active=False       
         )
         
-        # Envoi direct du lien d'activation au super-admin adrwarecontact@gmail.com sans passer par l'OTP
-        # Envoi direct du lien d'activation au super-admin adrwarecontact@gmail.com
         try:
             activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
             subject = "🔔 Nouveau compte en attente d'activation - ADRWARE"
@@ -69,6 +66,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         except Exception as e:
             print(f"Erreur d'envoi d'e-mail d'activation : {e}")
 
+        return user  # <--- C'est cette ligne qu'il manquait !
 class UserProfileSerializer(serializers.ModelSerializer):
     total_rentals = serializers.SerializerMethodField()
 
