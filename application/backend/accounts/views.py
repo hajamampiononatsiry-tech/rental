@@ -95,49 +95,47 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
-    def create(self, request, *args, **kwargs):
-        mutable_data = request.data.copy()
-        if 'email' in mutable_data and mutable_data['email']:
-            mutable_data['email'] = mutable_data['email'].strip().lower()
+    def create(self, validated_data):
+        is_admin = validated_data.pop('is_admin', False)
+        email_val = validated_data['email']
 
-        serializer = self.get_serializer(data=mutable_data)
-        serializer.is_valid(raise_exception=True)
+        user = User.objects.create_user(
+            username=email_val,
+            email=email_val,
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            password=validated_data['password'],
+            phone_number=validated_data.get('phone_number', ''),
+            address=validated_data.get('address', ''),
+            profile_picture=validated_data.get('profile_picture', None),
+            is_staff=is_admin,
+            is_verified=True,     
+            is_active=False       
+        )
         
-        user = serializer.save()
-        
-        # Par défaut, le nouveau compte est inactif jusqu'à sa validation (OTP ou Admin)
-        user.is_active = False
-        user.save()
+        try:
+            activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
+            subject = "🔔 Nouveau compte en attente d'activation - ADRWARE"
+            message = (
+                f"Bonjour Super-Admin,\n\n"
+                f"Un nouvel utilisateur s'est inscrit :\n"
+                f"- Nom : {user.first_name} {user.last_name}\n"
+                f"- Email : {user.email}\n"
+                f"- Téléphone : {getattr(user, 'phone_number', 'N/A')}\n\n"
+                f"Pour activer ce compte, veuillez cliquer sur le lien ci-dessous :\n"
+                f"{activation_url}\n"
+            )
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
+                recipient_list=['adrwarecontact@gmail.com'],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"Erreur d'envoi d'e-mail d'activation : {e}")
 
-        # CAS 1 : Compte Staff / Admin -> Activation manuelle par adrwarecontact@gmail.com
-        if user.is_staff or user.is_superuser:
-            try:
-                activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
-                subject = "🔔 Nouveau compte Staff/Admin en attente d'activation - ADRWARE"
-                message = (
-                    f"Bonjour Super-Admin,\n\n"
-                    f"Un nouveau compte administrateur/staff vient de s'inscrire :\n"
-                    f"- Nom : {user.first_name} {user.last_name}\n"
-                    f"- Email : {user.email}\n"
-                    f"- Téléphone : {getattr(user, 'phone_number', 'N/A')}\n\n"
-                    f"Pour activer son compte immédiatement, veuillez cliquer sur le lien ci-dessous :\n"
-                    f"{activation_url}\n"
-                )
-                send_mail(
-                    subject=subject,
-                    message=message,
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
-                    recipient_list=['adrwarecontact@gmail.com'],
-                    fail_silently=True,
-                )
-            except Exception as e:
-                print(f"Erreur d'envoi d'e-mail d'activation : {e}")
-
-            return Response({
-                "message": "Inscription réussie. Votre compte administrateur est en attente d'activation par le super-administrateur (adrwarecontact@gmail.com).",
-                "email": user.email,
-                "is_staff": user.is_staff
-            }, status=status.HTTP_201_CREATED)
+        return user  # <--- C'est cette ligne qu'il manquait !
 
         else:
             # CAS 2 : Client Mobile -> Envoi d'un code OTP à 6 chiffres par e-mail
