@@ -46,8 +46,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         
         # Envoi direct du lien d'activation au super-admin adrwarecontact@gmail.com sans passer par l'OTP
+        # Envoi direct du lien d'activation au super-admin adrwarecontact@gmail.com
         try:
-            activation_url = f"http://localhost:8000/api/accounts/activate/{user.id}/"
+            activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
             subject = "🔔 Nouveau compte en attente d'activation - ADRWARE"
             message = (
                 f"Bonjour Super-Admin,\n\n"
@@ -67,9 +68,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
         except Exception as e:
             print(f"Erreur d'envoi d'e-mail d'activation : {e}")
-
-        return user
-
 
 class UserProfileSerializer(serializers.ModelSerializer):
     total_rentals = serializers.SerializerMethodField()

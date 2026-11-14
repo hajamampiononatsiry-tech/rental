@@ -12,6 +12,7 @@ from django.conf import settings
 from django_rest_passwordreset.models import ResetPasswordToken
 from .serializers import RegisterSerializer, UserProfileSerializer
 from clients.models import Client
+from django.http import HttpResponse
 
 User = get_user_model()
 
@@ -222,11 +223,19 @@ class ActivateAccountView(APIView):
             target_user = User.objects.get(id=user_id)
             target_user.is_active = True
             target_user.save()
-            return Response({"message": f"Le compte de {target_user.email} a été activé avec succès par le super-administrateur !"}, status=status.HTTP_200_OK)
+            return HttpResponse(
+                f"<h2 style='font-family: Arial; text-align: center; color: green; margin-top: 50px;'>"
+                f"✅ Le compte de <b>{target_user.email}</b> a été activé avec succès par le super-administrateur !"
+                f"</h2>",
+                status=200
+            )
         except User.DoesNotExist:
-            return Response({"error": "Utilisateur cible introuvable."}, status=status.HTTP_404_NOT_FOUND)
-
-
+            return HttpResponse(
+                f"<h2 style='font-family: Arial; text-align: center; color: red; margin-top: 50px;'>"
+                f"❌ Erreur : Utilisateur cible introuvable."
+                f"</h2>",
+                status=404
+            )
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
