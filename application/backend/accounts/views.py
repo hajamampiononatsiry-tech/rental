@@ -12,6 +12,7 @@ from django.conf import settings
 from django_rest_passwordreset.models import ResetPasswordToken
 from .serializers import RegisterSerializer, UserProfileSerializer
 from clients.models import Client
+from accounts.utils import send_brevo_email
 from django.http import HttpResponse
 
 User = get_user_model()
@@ -104,34 +105,33 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         
         user = serializer.save()
-        
-        # Par défaut, le nouveau compte est inactif jusqu'à sa validation (OTP ou Admin)
         user.is_active = False
         user.save()
 
-        # CAS 1 : Compte Staff / Admin -> Activation manuelle par adrwarecontact@gmail.com
+        # CAS 1 : Compte Staff / Admin -> Envoi à l'admin via Brevo
         if user.is_staff or user.is_superuser:
             try:
                 activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
                 subject = "🔔 Nouveau compte Staff/Admin en attente d'activation - ADRWARE"
-                message = (
-                    f"Bonjour Super-Admin,\n\n"
-                    f"Un nouveau compte administrateur/staff vient de s'inscrire :\n"
-                    f"- Nom : {user.first_name} {user.last_name}\n"
-                    f"- Email : {user.email}\n"
-                    f"- Téléphone : {getattr(user, 'phone_number', 'N/A')}\n\n"
-                    f"Pour activer son compte immédiatement, veuillez cliquer sur le lien ci-dessous :\n"
-                    f"{activation_url}\n"
-                )
-                send_mail(
+                html_content = f"""
+                    <p>Bonjour Super-Admin,</p>
+                    <p>Un nouveau compte administrateur/staff vient de s'inscrire :</p>
+                    <ul>
+                        <li><b>Nom :</b> {user.first_name} {user.last_name}</li>
+                        <li><b>Email :</b> {user.email}</li>
+                        <li><b>Téléphone :</b> {getattr(user, 'phone_number', 'N/A')}</li>
+                    </ul>
+                    <p>Pour activer son compte immédiatement, veuillez cliquer sur le lien ci-dessous :</p>
+                    <p><a href="{activation_url}" style="padding: 10px 15px; background: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Activer le compte</a></p>
+                """
+                send_brevo_email(
+                    to_email="adrwarecontact@gmail.com",
+                    to_name="Super-Admin",
                     subject=subject,
-                    message=message,
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
-                    recipient_list=['adrwarecontact@gmail.com'],
-                    fail_silently=True,
+                    html_content=html_content
                 )
             except Exception as e:
-                print(f"Erreur d'envoi d'e-mail d'activation : {e}")
+                print(f"Erreur d'envoi d'e-mail d'activation Staff via Brevo : {e}")
 
             return Response({
                 "message": "Inscription réussie. Votre compte administrateur est en attente d'activation par le super-administrateur (adrwarecontact@gmail.com).",
@@ -140,34 +140,29 @@ class RegisterView(generics.CreateAPIView):
             }, status=status.HTTP_201_CREATED)
 
         else:
-            # CAS 2 : Client Mobile -> Envoi d'un code OTP à 6 chiffres par e-mail
+            # CAS 2 : Client Mobile -> Envoi du code OTP par Brevo
             sync_client_profile(user)
 
             try:
-                # Nettoyage des anciens tokens pour éviter les conflits
                 ResetPasswordToken.objects.filter(user=user).delete()
-
-                # Génération d'un code numérique exact à 6 chiffres
                 otp_code = f"{random.randint(0, 999999):06d}"
-                
                 ResetPasswordToken.objects.create(user=user, key=otp_code)
 
                 subject = "🔐 Votre code OTP à 6 chiffres - ADRWARE"
-                message = (
-                    f"Bonjour {user.first_name or 'Client'},\n\n"
-                    f"Votre code de vérification OTP à 6 chiffres pour activer votre compte est :\n\n"
-                    f"{otp_code}\n\n"
-                    f"Veuillez saisir ce code dans l'application pour valider votre inscription."
-                )
-                send_mail(
+                html_content = f"""
+                    <p>Bonjour {user.first_name or 'Client'},</p>
+                    <p>Votre code de vérification OTP à 6 chiffres pour activer votre compte est :</p>
+                    <h2 style="color: #4f46e5; letter-spacing: 2px;">{otp_code}</h2>
+                    <p>Veuillez saisir ce code dans l'application pour valider votre inscription.</p>
+                """
+                send_brevo_email(
+                    to_email=user.email,
+                    to_name=user.get_full_name() or "Client",
                     subject=subject,
-                    message=message,
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
-                    recipient_list=[user.email],
-                    fail_silently=True,
+                    html_content=html_content
                 )
             except Exception as e:
-                print(f"Erreur d'envoi d'e-mail OTP : {e}")
+                print(f"Erreur d'envoi d'e-mail OTP via Brevo : {e}")
 
             return Response({
                 "message": "Inscription réussie. Veuillez entrer le code OTP à 6 chiffres reçu par e-mail pour activer votre compte.",

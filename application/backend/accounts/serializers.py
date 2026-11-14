@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from django.conf import settings
 from clients.models import Client
+from accounts.utils import send_brevo_email  # 👈 Importe la fonction Brevo
 
 User = get_user_model()
 
@@ -49,24 +49,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         try:
             activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
             subject = "🔔 Nouveau compte en attente d'activation - ADRWARE"
-            message = (
-                f"Bonjour Super-Admin,\n\n"
-                f"Un nouvel utilisateur s'est inscrit :\n"
-                f"- Nom : {user.first_name} {user.last_name}\n"
-                f"- Email : {user.email}\n"
-                f"- Téléphone : {getattr(user, 'phone_number', 'N/A')}\n\n"
-                f"Pour activer ce compte, veuillez cliquer sur le lien ci-dessous :\n"
-                f"{activation_url}\n"
-            )
-            send_mail(
+            html_content = f"""
+                <p>Bonjour Super-Admin,</p>
+                <p>Un nouvel utilisateur s'est inscrit :</p>
+                <ul>
+                    <li><b>Nom :</b> {user.first_name} {user.last_name}</li>
+                    <li><b>Email :</b> {user.email}</li>
+                    <li><b>Téléphone :</b> {getattr(user, 'phone_number', 'N/A')}</li>
+                </ul>
+                <p>Pour activer ce compte, veuillez cliquer sur le lien ci-dessous :</p>
+                <p><a href="{activation_url}" style="padding: 10px 15px; background: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Activer le compte</a></p>
+            """
+            send_brevo_email(
+                to_email="adrwarecontact@gmail.com",
+                to_name="Super-Admin",
                 subject=subject,
-                message=message,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com'),
-                recipient_list=['adrwarecontact@gmail.com'],
-                fail_silently=True,
+                html_content=html_content
             )
         except Exception as e:
-            print(f"Erreur d'envoi d'e-mail d'activation : {e}")
+            print(f"Erreur d'envoi d'e-mail d'activation via Brevo : {e}")
 
         return user
 

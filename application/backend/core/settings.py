@@ -207,6 +207,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+BREVO_API_KEY = config('BREVO_API_KEY', default='')
 
 # Email Configuration (SMTP actif pour l'envoi réel des factures par Gmail)
 # Gestion des e-mails sécurisée pour Render
