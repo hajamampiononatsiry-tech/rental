@@ -1,19 +1,22 @@
 import os
 import re
 import socket
+import requests
+import traceback
+import urllib.parse
 from datetime import datetime, date, timedelta
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-import urllib.parse
-from django.utils import timezone
+
 from .models import Facture
 from numeros_pin.models import NumeroPinMobile
 from .serializers import FactureSerializer
@@ -42,7 +45,7 @@ def get_server_ip(request):
 def send_invoice_email(request):
     recipient_email = request.data.get('email')
     subject = request.data.get('subject')
-    message_text = request.data.get('message')
+    message_text = request.data.get('message') or "Veuillez trouver ci-joint les détails de votre facture."
     invoice_id = request.data.get('invoice_id')
     invoice_ids = request.data.get('invoice_ids')
 
@@ -68,13 +71,12 @@ def send_invoice_email(request):
         )
 
     try:
-        sender_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@adrware.mg')
-        
-        # CORRECTION : Rétablissement du calcul robuste incluant f.total
+        sender_email = getattr(settings, 'EMAIL_HOST_USER', None) or getattr(settings, 'DEFAULT_FROM_EMAIL', 'adrwarecontact@gmail.com')
+
         total_price_sum = sum(float(f.reservation.total_price if f.reservation and f.reservation.total_price else getattr(f, 'total', 0)) for f in factures)
         montant_paye_sum = sum(float(f.montant_paye or 0) for f in factures)
         reste_a_payer_sum = sum(float(f.reste_a_payer or max(0, (f.reservation.total_price if f.reservation else getattr(f, 'total', 0)) - f.montant_paye)) for f in factures)
-        
+
         reference_str = ", ".join([f.reference for f in factures])
 
         current_host = request.get_host()
@@ -213,20 +215,53 @@ def send_invoice_email(request):
         </html>
         """
 
-        email = EmailMultiAlternatives(
-            subject=subject or f"Facture Officielle {reference_str} - ADRWARE Car Rental",
-            body=message_text,
-            from_email=sender_email,
-            to=[recipient_email]
-        )
-        email.attach_alternative(html_content, "text/html")
-        email.send()
+        email_subject = subject or f"Facture Officielle {reference_str} - ADRWARE Car Rental"
+        brevo_api_key = getattr(settings, 'BREVO_API_KEY', '') or os.environ.get('BREVO_API_KEY', '')
+
+        if brevo_api_key:
+            # Envoi via l'API HTTP Brevo (Port 443 autorisé sur Render)
+            brevo_url = "https://api.brevo.com/v3/smtp/email"
+            headers = {
+                "accept": "application/json",
+                "api-key": brevo_api_key,
+                "content-type": "application/json"
+            }
+            payload = {
+                "sender": {"email": sender_email, "name": "ADRWARE Car Rental"},
+                "to": [{"email": recipient_email}],
+                "subject": email_subject,
+                "htmlContent": html_content,
+                "textContent": message_text
+            }
+            response = requests.post(brevo_url, json=payload, headers=headers, timeout=15)
+            if response.status_code not in [200, 201, 202]:
+                print("ERREUR API BREVO :", response.status_code, response.text)
+                return Response(
+                    {"error": f"Erreur lors de l'envoi via Brevo ({response.status_code}) : {response.text}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        else:
+            # Fallback SMTP (pour le développement local uniquement)
+            email = EmailMultiAlternatives(
+                subject=email_subject,
+                body=message_text,
+                from_email=sender_email,
+                to=[recipient_email]
+            )
+            email.attach_alternative(html_content, "text/html")
+            email.send()
 
         return Response({"message": "Email envoyé avec succès !"}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response({"error": f"Erreur lors de l'envoi de l'email : {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        error_trace = traceback.format_exc()
+        print("ERREUR EMAIL EXACTE :", error_trace)
+        return Response(
+            {"error": f"Erreur lors de l'envoi de l'email : {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 class FactureViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     serializer_class = FactureSerializer
@@ -375,8 +410,6 @@ class FactureViewSet(viewsets.ModelViewSet):
                 if not user:
                     user = CustomUser.objects.filter(phone_number=telephone).first()
 
-        mode_lower = str(mode_paiement).lower().strip()
-        
         if mode_paiement and 'Espèces' not in mode_paiement:
             self._valider_et_enregistrer_pin(user, telephone, pin_code, strict_existence=True)
 
@@ -386,12 +419,10 @@ class FactureViewSet(viewsets.ModelViewSet):
                 ancien_total = float(instance.montant_paye or 0.0)
                 versement = nouveau_total - ancien_total
 
-                # Calcul du reste exact à payer avant ce versement
                 total_facture = float(instance.reservation.total_price if instance.reservation and instance.reservation.total_price else getattr(instance, 'total', 0))
                 reste_a_payer_actuel = max(0, total_facture - ancien_total)
 
                 if versement > 0:
-                    # RÈGLE ASSOUPLIE : On autorise < 1000 Ar UNIQUEMENT si cela solde le reste exact dû
                     is_derniere_tranche_exacte = abs(versement - reste_a_payer_actuel) < 0.01
 
                     if versement < 1000 and not is_derniere_tranche_exacte:
