@@ -118,10 +118,13 @@ export default function Facturation() {
 
   const [serverIp, setServerIp] = useState('');
 
-const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+  const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const currentProtocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+
   const API_BASE_URL = isProduction
     ? 'https://adrware-backend.onrender.com/api'
-    : `http://${currentHost}:8000/api`;
+    : `${currentProtocol}//${currentHost}:8000/api`;
 
   const API_URL = `${API_BASE_URL}/factures/`;
   const RESERVATIONS_API_URL = `${API_BASE_URL}/reservations/`;
@@ -132,14 +135,15 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname.i
       const host = window.location.hostname;
       const isLocal = host === 'localhost' || host === '127.0.0.1';
       const targetHost = isLocal && serverIp ? serverIp : host;
-      return `${window.location.protocol}//${targetHost}:${window.location.port}`;
+      const portPart = window.location.port ? `:${window.location.port}` : '';
+      return `${window.location.protocol}//${targetHost}${portPart}`;
     }
     return '';
   };
 
   const fetchServerIp = async () => {
     try {
-      const response = await fetch(`http://${currentHost}:8000/api/server-ip/`);
+      const response = await fetch(`${API_BASE_URL}/server-ip/`);
       if (response.ok) {
         const data = await response.json();
         if (data.ip) {
@@ -829,7 +833,7 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname.i
     };
 
     try {
-      const response = await fetch(`http://${currentHost}:8000/api/factures/send-email/`, {
+      const response = await fetch(`${API_BASE_URL}/factures/send-email/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -881,7 +885,7 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname.i
           invoice_id: inv.rawId,
         };
 
-        return fetch(`http://${currentHost}:8000/api/factures/send-email/`, {
+        return fetch(`${API_BASE_URL}/factures/send-email/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2077,3 +2081,4 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname.i
     </div>
   );
 }
+```[cite: 25]
