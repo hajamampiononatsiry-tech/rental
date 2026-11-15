@@ -2081,4 +2081,3 @@ export default function Facturation() {
     </div>
   );
 }
-```[cite: 25]
