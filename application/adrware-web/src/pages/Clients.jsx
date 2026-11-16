@@ -443,7 +443,7 @@ export default function Clients() {
     }
   };
 
-  const handleToggleBan = async (e) => {
+ const handleToggleBan = async (e) => {
     e.preventDefault();
     if (!banModal.client) return;
 
@@ -451,22 +451,22 @@ export default function Clients() {
     const nextBannedState = !currentBanned;
     
     const actionEndpoint = nextBannedState ? 'ban/' : 'unban/';
-    const payload = nextBannedState 
-      ? { is_banned: true, ban_reason: banModal.reason, banReason: banModal.reason } 
-      : { is_banned: false, ban_reason: '', banReason: '' };
+    
+    // Utilisation de FormData pour correspondre aux parser_classes du backend (MultiPartParser / FormParser)
+    const formDataObj = new FormData();
+    formDataObj.append('is_banned', nextBannedState);
+    formDataObj.append('ban_reason', nextBannedState ? banModal.reason : '');
 
     try {
       let response = await fetch(`${API_BASE_URL}${banModal.client.id}/${actionEndpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: formDataObj, // Pas de Content-Type explicite, fetch le gère automatiquement avec FormData
       });
 
       if (!response.ok) {
         response = await fetch(`${API_BASE_URL}${banModal.client.id}/`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: formDataObj,
         });
       }
 
@@ -480,6 +480,7 @@ export default function Clients() {
       }
     } catch (err) {
       console.error("Erreur de bannissement :", err);
+      toast.error("Erreur de connexion au serveur.");
     }
   };
 
