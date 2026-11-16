@@ -12,3 +12,4 @@ whitenoise
 cloudinary==1.41.0
 django-cloudinary-storage==0.3.0
 sib-api-v3-sdk
+drf-yasg>=1.21.8
