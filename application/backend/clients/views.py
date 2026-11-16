@@ -2,14 +2,14 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser  # <--- AJOUTER CET IMPORT
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser  # <--- AJOUTER JSONParser
 from django.db.models import Q
 from .models import Client
 from .serializers import ClientSerializer
 
 class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
-    parser_classes = (MultiPartParser, FormParser)  # <--- AJOUTER CETTE LIGNE POUR SUPPORTER LES IMAGES
+    parser_classes = (JSONParser, MultiPartParser, FormParser)  # <--- SUPPORTE À LA FOIS JSON ET FORMULAIRES MULTIPART
 
     def get_queryset(self):
         # 1. Exclure les fiches clients rattachées à un compte Staff ou Superuser
@@ -31,14 +31,14 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Supprime le client ainsi que son compte utilisateur Django associé."""
-        user = instance.user  # Récupère l'utilisateur rattaché au client[cite: 19]
-        instance.delete()     # Supprime la fiche Client[cite: 19]
+        user = instance.user  
+        instance.delete()     
         if user:
-            user.delete()     # Supprime le compte utilisateur CustomUser[cite: 19]
+            user.delete()     
 
     @action(detail=True, methods=['post', 'patch'])
     def ban(self, request, pk=None):
-        """Action pour bannir un client[cite: 19]"""
+        """Action pour bannir un client"""
         client = self.get_object()
         reason = request.data.get('ban_reason') or request.data.get('banReason') or ''
         
@@ -51,7 +51,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post', 'patch'])
     def unban(self, request, pk=None):
-        """Action pour débannir un client[cite: 19]"""
+        """Action pour débannir un client"""
         client = self.get_object()
         
         client.is_banned = False
