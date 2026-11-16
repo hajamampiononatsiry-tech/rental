@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'cloudinary',
     'cloudinary_storage',
+    'drf_yasg',
 
     # Local apps
     'fleet',

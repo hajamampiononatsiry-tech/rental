@@ -213,7 +213,18 @@ export default function Catalogue() {
       toast.error("Aucune donnée à exporter.");
       return;
     }
-    const worksheet = XLSX.utils.json_to_sheet(cars);
+
+    // Nettoyage des données : on remplace les images base64 trop lourdes 
+    // pour ne pas dépasser la limite Excel de 32 767 caractères par cellule.
+    const cleanCars = cars.map(car => {
+      const { photos, ...rest } = car;
+      return {
+        ...rest,
+        photos: Array.isArray(photos) && photos.length > 0 ? `${photos.length} photo(s)` : 'Aucune photo'
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(cleanCars);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Flotte_Vehicules");
     XLSX.writeFile(workbook, "Catalogue_Complet_ADRWARE.xlsx");

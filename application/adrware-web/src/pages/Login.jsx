@@ -80,8 +80,6 @@ export default function Login() {
 
         {/* Formulaire de Connexion */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* Email */}
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-300">
               Adresse Email Administrateur
@@ -99,8 +97,6 @@ export default function Login() {
               />
             </div>
           </div>
-
-          {/* Mot de passe */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-300">
