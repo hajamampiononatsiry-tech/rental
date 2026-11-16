@@ -214,15 +214,28 @@ export default function Catalogue() {
       return;
     }
 
-    // Nettoyage des données : on remplace les images base64 trop lourdes 
-    // pour ne pas dépasser la limite Excel de 32 767 caractères par cellule.
-    const cleanCars = cars.map(car => {
-      const { photos, ...rest } = car;
-      return {
-        ...rest,
-        photos: Array.isArray(photos) && photos.length > 0 ? `${photos.length} photo(s)` : 'Aucune photo'
-      };
-    });
+    // Nettoyage rigoureux des données pour Excel
+    const cleanCars = cars.map(car => ({
+      ID: car.id,
+      Nom: car.name || '',
+      Immatriculation: car.registration || '',
+      Annee: car.year || '',
+      Categorie: car.category || '',
+      PrixJourAr: car.price || 0,
+      ReductionPourcent: car.discount || 0,
+      Carburant: car.fuel || '',
+      Transmission: car.transmission || '',
+      Places: car.seats || '',
+      Portes: car.doors || '',
+      Climatisation: car.airConditioning ? 'Oui' : 'Non',
+      Kilometrage: car.mileage || 0,
+      Statut: car.status || '',
+      CautionAr: car.deposit || 0,
+      KmInclus: car.includedMileage || '',
+      OptionChauffeur: car.driverOption || '',
+      Photos: Array.isArray(car.photos) && car.photos.length > 0 ? `${car.photos.length} photo(s)` : 'Aucune photo',
+      Description: car.description || ''
+    }));
 
     const worksheet = XLSX.utils.json_to_sheet(cleanCars);
     const workbook = XLSX.utils.book_new();
@@ -230,7 +243,7 @@ export default function Catalogue() {
     XLSX.writeFile(workbook, "Catalogue_Complet_ADRWARE.xlsx");
     toast.success("Catalogue exporté au format Excel !");
   };
-
+  
   const importFromExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
