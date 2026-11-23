@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import {
-  Search,
-  Trash2,
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  Search, 
+  Trash2, 
   Edit,
-  CheckCircle,
-  Clock,
-  XCircle,
-  Lock,
-  Download,
+  CheckCircle, 
+  Clock, 
+  XCircle, 
+  Lock, 
+  Download, 
   Upload,
-  Plus,
-  X,
+  Plus, 
+  X, 
   Loader2,
   AlertTriangle,
   ChevronLeft,
@@ -30,14 +30,22 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 
 const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
-const BACKEND_ORIGIN = isProduction
-  ? 'https://adrware-backend.onrender.com'
-  : 'http://127.0.0.1:8000';
 
-const API_BASE_URL = `${BACKEND_ORIGIN}/api/reservations/`;
-const API_CARS_URL = `${BACKEND_ORIGIN}/api/cars/`;
-const API_CLIENTS_URL = `${BACKEND_ORIGIN}/api/clients/`;
-const API_MAINTENANCES_URL = `${BACKEND_ORIGIN}/api/maintenances/`;
+const API_BASE_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/reservations/'
+  : 'http://127.0.0.1:8000/api/reservations/';
+
+const API_CARS_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/cars/'
+  : 'http://127.0.0.1:8000/api/cars/';
+
+const API_CLIENTS_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/clients/'
+  : 'http://127.0.0.1:8000/api/clients/';
+
+const API_MAINTENANCES_URL = isProduction
+  ? 'https://adrware-backend.onrender.com/api/maintenances/'
+  : 'http://127.0.0.1:8000/api/maintenances/';
 
 const DEFAULT_CAR_IMAGE = 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=300&q=80';
 
@@ -53,6 +61,7 @@ const getClientFullName = (clientObj) => {
 
   const firstName = clientObj.first_name || clientObj.prenom || '';
   const lastName = clientObj.last_name || clientObj.nom || '';
+
   const combinedName = `${firstName} ${lastName}`.trim();
   if (combinedName) return combinedName;
 
@@ -66,7 +75,7 @@ const getCarPlateNumber = (carObj) => {
 
 const getCarPhotoUrl = (carObj) => {
   if (!carObj) return DEFAULT_CAR_IMAGE;
-
+  
   let rawPhoto = carObj.car_photo || carObj.photos || carObj.car_photos || carObj.image || carObj.car_image || carObj.picture || carObj.file || '';
 
   if (typeof rawPhoto === 'string' && rawPhoto.trim().startsWith('[')) {
@@ -75,7 +84,7 @@ const getCarPhotoUrl = (carObj) => {
       if (Array.isArray(parsed) && parsed.length > 0) {
         rawPhoto = parsed[0];
       }
-    } catch (_) {}
+    } catch (e) {}
   }
 
   if (Array.isArray(rawPhoto) && rawPhoto.length > 0) {
@@ -87,11 +96,16 @@ const getCarPhotoUrl = (carObj) => {
   }
 
   if (typeof rawPhoto === 'string' && rawPhoto.trim() !== '') {
-    const cleanPhoto = rawPhoto.trim().replace(/^["\[\s]+|["\]\s]+$/g, '');
+    let cleanPhoto = rawPhoto.trim().replace(/^["\[\s]+|["\]\s]+$/g, '');
+
     if (cleanPhoto.startsWith('data:image/') || cleanPhoto.startsWith('http://') || cleanPhoto.startsWith('https://')) {
       return cleanPhoto;
     }
-    return cleanPhoto.startsWith('/') ? `${BACKEND_ORIGIN}${cleanPhoto}` : `${BACKEND_ORIGIN}/${cleanPhoto}`;
+
+    if (cleanPhoto.startsWith('/')) {
+      return `http://${CURRENT_HOST}:8000${cleanPhoto}`;
+    }
+    return `http://${CURRENT_HOST}:8000/${cleanPhoto}`;
   }
 
   return DEFAULT_CAR_IMAGE;
@@ -103,8 +117,10 @@ const getCarDisplayLabel = (carObj) => {
   const plate = getCarPlateNumber(carObj);
   const color = carObj.color || carObj.couleur || '';
 
-  const details = [];
-  details.push(plate ? `Plaque: ${plate}` : 'Plaque non renseignée');
+  let details = [];
+  if (plate) details.push(`Plaque: ${plate}`);
+  else details.push('Plaque non renseignée');
+  
   if (color) details.push(`Couleur: ${color}`);
 
   return `${name} (${details.join(' - ')})`;
@@ -126,13 +142,13 @@ export default function Reservations() {
   const [sortBy, setSortBy] = useState('date_recent');
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = new Date().toISOString().split('T')[0];
 
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, ids: [] });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
-
+  
   const [newReservation, setNewReservation] = useState({
     clientId: '',
     clientName: '',
@@ -148,10 +164,10 @@ export default function Reservations() {
   const getErrorMessage = (errData) => {
     if (!errData) return "Une erreur est survenue.";
     if (typeof errData === 'string') return errData;
-
+    
     if (errData.non_field_errors) {
-      return Array.isArray(errData.non_field_errors)
-        ? errData.non_field_errors.join(' ')
+      return Array.isArray(errData.non_field_errors) 
+        ? errData.non_field_errors.join(' ') 
         : errData.non_field_errors;
     }
 
@@ -184,14 +200,17 @@ export default function Reservations() {
     }
   };
 
-  const fetchClients = useCallback(async () => {
+  const fetchClients = async () => {
     try {
       const response = await fetch(API_CLIENTS_URL);
       if (response.ok) {
         const data = await response.json();
-        const sortedClients = [...data].sort((a, b) =>
-          getClientFullName(a).toLowerCase().localeCompare(getClientFullName(b).toLowerCase())
-        );
+        const sortedClients = [...data].sort((a, b) => {
+          const nameA = getClientFullName(a).toLowerCase();
+          const nameB = getClientFullName(b).toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+
         setClients(sortedClients);
         return sortedClients;
       }
@@ -199,16 +218,19 @@ export default function Reservations() {
       console.error("Erreur de chargement des clients :", err);
     }
     return [];
-  }, []);
+  };
 
-  const fetchCars = useCallback(async () => {
+  const fetchCars = async () => {
     try {
       const response = await fetch(API_CARS_URL);
       if (response.ok) {
         const data = await response.json();
-        const sortedCars = [...data].sort((a, b) =>
-          (a.name || a.nom || '').toLowerCase().localeCompare((b.name || b.nom || '').toLowerCase())
-        );
+        const sortedCars = [...data].sort((a, b) => {
+          const nameA = (a.name || a.nom || '').toLowerCase();
+          const nameB = (b.name || b.nom || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+
         setCars(sortedCars);
         return sortedCars;
       }
@@ -216,9 +238,9 @@ export default function Reservations() {
       console.error("Erreur de chargement des voitures :", err);
     }
     return [];
-  }, []);
+  };
 
-  const fetchMaintenances = useCallback(async () => {
+  const fetchMaintenances = async () => {
     try {
       const response = await fetch(API_MAINTENANCES_URL);
       if (response.ok) {
@@ -228,14 +250,14 @@ export default function Reservations() {
     } catch (err) {
       console.error("Erreur de chargement des maintenances :", err);
     }
-  }, []);
+  };
 
-  const fetchReservations = useCallback(async (loadedClientsList = clients, loadedCarsList = cars) => {
+  const fetchReservations = async (loadedClientsList = clients, loadedCarsList = cars) => {
     try {
       const response = await fetch(API_BASE_URL);
       if (!response.ok) throw new Error('Erreur de chargement des réservations');
       const data = await response.json();
-
+      
       const formattedOrders = data.map(item => {
         let clientDisplayName = '';
 
@@ -250,19 +272,23 @@ export default function Reservations() {
         }
 
         const rawClientId = item.client_id || (typeof item.client === 'number' || !isNaN(Number(item.client)) ? item.client : null);
-
+        
         if (!clientDisplayName && rawClientId) {
           const matchedClient = loadedClientsList.find(c => String(c.id) === String(rawClientId));
-          if (matchedClient) clientDisplayName = getClientFullName(matchedClient);
+          if (matchedClient) {
+            clientDisplayName = getClientFullName(matchedClient);
+          }
         }
 
         if (!clientDisplayName) {
-          const matchedByContact = loadedClientsList.find(c =>
-            (item.client_email && c.email === item.client_email) ||
+          const matchedByEmailOrPhone = loadedClientsList.find(c => 
+            (item.client_email && c.email === item.client_email) || 
             (item.email && c.email === item.email) ||
             (item.phone && (c.phone === item.phone || c.telephone === item.phone))
           );
-          if (matchedByContact) clientDisplayName = getClientFullName(matchedByContact);
+          if (matchedByEmailOrPhone) {
+            clientDisplayName = getClientFullName(matchedByEmailOrPhone);
+          }
         }
 
         if (!clientDisplayName) {
@@ -272,9 +298,16 @@ export default function Reservations() {
         const rawCarId = item.car || item.car_id || (item.car_detail && item.car_detail.id);
         const matchedCarObj = loadedCarsList.find(c => String(c.id) === String(rawCarId));
 
-        const carDisplayName = item.car_name || item.car_detail?.name || (matchedCarObj ? (matchedCarObj.name || matchedCarObj.nom || `${matchedCarObj.brand || ''} ${matchedCarObj.model || ''}`.trim()) : 'Véhicule');
-        const carPlate = item.car_plate || getCarPlateNumber(matchedCarObj) || getCarPlateNumber(item.car_detail) || 'Sans plaque';
-        const carPhoto = item.car_photo || getCarPhotoUrl(matchedCarObj) || getCarPhotoUrl(item.car_detail);
+        let carDisplayName = item.car_name || item.car_detail?.name || (matchedCarObj ? (matchedCarObj.name || matchedCarObj.nom || `${matchedCarObj.brand || ''} ${matchedCarObj.model || ''}`.trim()) : 'Véhicule');
+        
+        let carPlate = item.car_plate || 
+                       getCarPlateNumber(matchedCarObj) || 
+                       getCarPlateNumber(item.car_detail) || 
+                       'Sans plaque';
+
+        let carPhoto = item.car_photo || 
+                       getCarPhotoUrl(matchedCarObj) || 
+                       getCarPhotoUrl(item.car_detail);
 
         return {
           id: item.id,
@@ -285,8 +318,8 @@ export default function Reservations() {
           phone: item.client_phone || item.client_detail?.phone || item.phone || 'Non renseigné',
           carId: rawCarId,
           carName: carDisplayName,
-          carPlate,
-          carPhoto,
+          carPlate: carPlate,
+          carPhoto: carPhoto,
           startDate: item.start_date,
           endDate: item.end_date,
           total: Number(item.total_price),
@@ -301,34 +334,26 @@ export default function Reservations() {
       console.error(err);
       setError('Impossible de récupérer les données du serveur.');
     }
-  }, [clients, cars]);
+  };
 
   useEffect(() => {
-    let active = true;
-
     const loadAllData = async (isBackground = false) => {
-      if (!isBackground && active) setLoading(true);
-      const [loadedClients, loadedCars] = await Promise.all([fetchClients(), fetchCars()]);
+      if (!isBackground) setLoading(true);
+      const loadedClients = await fetchClients();
+      const loadedCars = await fetchCars();
       await fetchMaintenances();
-      if (active) {
-        await fetchReservations(loadedClients, loadedCars);
-        if (!isBackground) setLoading(false);
-      }
+      await fetchReservations(loadedClients, loadedCars);
+      if (!isBackground) setLoading(false);
     };
 
     loadAllData(false);
 
     const interval = setInterval(() => {
-      if (!isAddModalOpen && !deleteModal.isOpen) {
-        loadAllData(true);
-      }
-    }, 20000);
+      loadAllData(true);
+    }, 3000);
 
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [fetchClients, fetchCars, fetchMaintenances, fetchReservations, isAddModalOpen, deleteModal.isOpen]);
+    return () => clearInterval(interval);
+  }, []);
 
   const checkMaintenanceConflict = (carId, startDate, endDate) => {
     const reqStart = new Date(startDate);
@@ -336,11 +361,13 @@ export default function Reservations() {
 
     return maintenances.some(m => {
       if (m.statut === 'Terminée') return false;
+
       const isSameCar = String(m.car) === String(carId) || String(m.car_id) === String(carId);
       if (!isSameCar) return false;
 
       const maintStart = new Date(m.date_debut || m.start_date);
       const maintEnd = new Date(m.date_fin || m.end_date || m.date_debut || m.start_date);
+
       return reqStart <= maintEnd && reqEnd >= maintStart;
     });
   };
@@ -348,7 +375,11 @@ export default function Reservations() {
   const selectableCars = useMemo(() => {
     return cars
       .filter(c => c.status === 'Disponible' || (isEditing && String(c.id) === String(newReservation.car)))
-      .sort((a, b) => (a.name || a.nom || '').toLowerCase().localeCompare((b.name || b.nom || '').toLowerCase()));
+      .sort((a, b) => {
+        const nameA = (a.name || a.nom || '').toLowerCase();
+        const nameB = (b.name || b.nom || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
   }, [cars, isEditing, newReservation.car]);
 
   const selectedClientObj = useMemo(() => {
@@ -368,12 +399,14 @@ export default function Reservations() {
       if (currentSelectedCar) {
         const start = new Date(newReservation.startDate);
         const end = new Date(newReservation.endDate);
-        const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
         if (diffDays > 0) {
           const rawPrice = Number(currentSelectedCar.price || currentSelectedCar.prix_journalier || 0);
           const carDiscount = Number(currentSelectedCar.discount || currentSelectedCar.remise || 0);
-
+          
           let clientLoyaltyDiscount = 0;
           if (currentSelectedClient) {
             if (currentSelectedClient.discount !== undefined) {
@@ -384,12 +417,15 @@ export default function Reservations() {
               const rentals = Number(currentSelectedClient.totalRentals || currentSelectedClient.total_rentals || 0);
               if (rentals >= 5) clientLoyaltyDiscount = 15;
               else if (rentals >= 3) clientLoyaltyDiscount = 5;
+              else clientLoyaltyDiscount = 0;
             }
           }
 
           const totalDiscountPercent = Math.min(100, carDiscount + clientLoyaltyDiscount);
           const pricePerDayAfterDiscount = rawPrice - (rawPrice * (totalDiscountPercent / 100));
-          setNewReservation(prev => ({ ...prev, total: diffDays * pricePerDayAfterDiscount }));
+          const calculatedTotal = diffDays * pricePerDayAfterDiscount;
+          
+          setNewReservation(prev => ({ ...prev, total: calculatedTotal }));
         } else {
           setNewReservation(prev => ({ ...prev, total: 0 }));
         }
@@ -435,11 +471,15 @@ export default function Reservations() {
 
   const handleClientSelectChange = (clientId) => {
     const selected = clients.find(c => String(c.id) === String(clientId));
-    setNewReservation(prev => ({
-      ...prev,
-      clientId: String(clientId),
-      clientName: selected ? getClientFullName(selected) : prev.clientName
-    }));
+    if (selected) {
+      setNewReservation(prev => ({
+        ...prev,
+        clientId: String(selected.id),
+        clientName: getClientFullName(selected)
+      }));
+    } else {
+      setNewReservation(prev => ({ ...prev, clientId: String(clientId) }));
+    }
   };
 
   const handleStatusChange = async (id, currentStatus, newStatus, carId) => {
@@ -465,13 +505,17 @@ export default function Reservations() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'En location' }),
           });
+          fetchCars();
+        } else if (carId) {
+          fetchCars();
         }
-        await Promise.all([fetchCars(), fetchClients()]);
-        toast.success(
-          isOrderLocked(newStatus)
-            ? `Statut mis à jour : "${newStatus}". La réservation est désormais VERROUILLÉE.`
-            : `Statut modifié vers : "${newStatus}"`
-        );
+
+        await fetchClients();
+        if (isOrderLocked(newStatus)) {
+          toast.success(`Statut mis à jour : "${newStatus}". La réservation est désormais VERROUILLÉE.`);
+        } else {
+          toast.success(`Statut modifié vers : "${newStatus}"`);
+        }
       } else {
         const errData = await response.json().catch(() => ({}));
         toast.error(getErrorMessage(errData));
@@ -502,11 +546,6 @@ export default function Reservations() {
 
     if (!newReservation.car || !newReservation.startDate || !newReservation.endDate) {
       toast.error("Veuillez remplir tous les champs requis.");
-      return;
-    }
-
-    if (new Date(newReservation.endDate) < new Date(newReservation.startDate)) {
-      toast.error("La date de fin ne peut pas être antérieure à la date de début.");
       return;
     }
 
@@ -541,7 +580,7 @@ export default function Reservations() {
       const method = isEditing ? 'PATCH' : 'POST';
 
       const response = await fetch(url, {
-        method,
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -555,7 +594,8 @@ export default function Reservations() {
           });
         }
 
-        const [refreshedClients, refreshedCars] = await Promise.all([fetchClients(), fetchCars()]);
+        const refreshedClients = await fetchClients();
+        const refreshedCars = await fetchCars();
         await fetchReservations(refreshedClients, refreshedCars);
         setIsAddModalOpen(false);
         toast.success(isEditing ? "Réservation modifiée avec succès !" : "Réservation sur place enregistrée et verrouillée !");
@@ -568,39 +608,6 @@ export default function Reservations() {
       toast.error("Erreur de connexion lors de l'enregistrement.");
     }
   };
-
-  const filteredOrders = useMemo(() => {
-    let result = orders.filter(order => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        String(order.client || '').toLowerCase().includes(search) ||
-        String(order.phone || '').toLowerCase().includes(search) ||
-        String(order.carName || '').toLowerCase().includes(search) ||
-        String(order.carPlate || '').toLowerCase().includes(search) ||
-        String(order.ref || '').toLowerCase().includes(search);
-
-      const matchesStatus = statusFilter === 'Tous' || order.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-
-    if (sortBy === 'a_z') {
-      result = [...result].sort((a, b) => (a.client || '').localeCompare(b.client || ''));
-    } else if (sortBy === 'z_a') {
-      result = [...result].sort((a, b) => (b.client || '').localeCompare(a.client || ''));
-    } else if (sortBy === 'date_recent') {
-      result = [...result].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-    } else if (sortBy === 'date_ancienne') {
-      result = [...result].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-    } else if (sortBy === 'random') {
-      result = [...result].sort(() => Math.random() - 0.5);
-    }
-
-    return result;
-  }, [orders, searchTerm, statusFilter, sortBy]);
-
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentOrders = filteredOrders.slice(startIndex, startIndex + itemsPerPage);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -617,7 +624,7 @@ export default function Reservations() {
       toast.error("Impossible de sélectionner : cette réservation est verrouillée.");
       return;
     }
-    setSelectedOrderIds(prev =>
+    setSelectedOrderIds(prev => 
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
@@ -625,7 +632,9 @@ export default function Reservations() {
   const confirmDelete = async () => {
     try {
       await Promise.all(
-        deleteModal.ids.map(id => fetch(`${API_BASE_URL}${id}/`, { method: 'DELETE' }))
+        deleteModal.ids.map(id => 
+          fetch(`${API_BASE_URL}${id}/`, { method: 'DELETE' })
+        )
       );
       setOrders(orders.filter(o => !deleteModal.ids.includes(o.id)));
       setSelectedOrderIds(selectedOrderIds.filter(id => !deleteModal.ids.includes(id)));
@@ -648,9 +657,10 @@ export default function Reservations() {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
-
+        
         let successCount = 0;
         for (const item of data) {
           const payload = {
@@ -682,6 +692,45 @@ export default function Reservations() {
     };
     reader.readAsBinaryString(file);
   };
+
+  const filteredOrders = useMemo(() => {
+    let result = orders.filter(order => {
+      const clientStr = String(order.client || '').toLowerCase();
+      const phoneStr = String(order.phone || '').toLowerCase();
+      const carNameStr = String(order.carName || '').toLowerCase();
+      const carPlateStr = String(order.carPlate || '').toLowerCase();
+      const refStr = String(order.ref || '').toLowerCase();
+      const search = searchTerm.toLowerCase();
+
+      const matchesSearch = 
+        clientStr.includes(search) || 
+        phoneStr.includes(search) ||
+        carNameStr.includes(search) ||
+        carPlateStr.includes(search) ||
+        refStr.includes(search);
+
+      const matchesStatus = statusFilter === 'Tous' || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    if (sortBy === 'a_z') {
+      result = [...result].sort((a, b) => (a.client || '').localeCompare(b.client || ''));
+    } else if (sortBy === 'z_a') {
+      result = [...result].sort((a, b) => (b.client || '').localeCompare(a.client || ''));
+    } else if (sortBy === 'date_recent') {
+      result = [...result].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    } else if (sortBy === 'date_ancienne') {
+      result = [...result].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    } else if (sortBy === 'random') {
+      result = [...result].sort(() => Math.random() - 0.5);
+    }
+
+    return result;
+  }, [orders, searchTerm, statusFilter, sortBy]);
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentOrders = filteredOrders.slice(startIndex, startIndex + itemsPerPage);
 
   const handleExportExcel = () => {
     if (filteredOrders.length === 0) {
@@ -718,14 +767,16 @@ export default function Reservations() {
     <div className="space-y-6 font-sans max-w-[1600px] mx-auto p-2 sm:p-4">
       <Toaster position="top-right" reverseOrder={false} />
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept=".xlsx, .xls, .csv"
-        style={{ display: 'none' }}
+      {/* Input caché pour l'import Excel / CSV */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        accept=".xlsx, .xls, .csv" 
+        style={{ display: 'none' }} 
       />
 
+      {/* En-tête de la page */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2.5">
@@ -739,7 +790,7 @@ export default function Reservations() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           {selectedOrderIds.length > 0 && (
-            <button
+            <button 
               onClick={() => setDeleteModal({ isOpen: true, ids: selectedOrderIds })}
               className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap"
             >
@@ -748,7 +799,8 @@ export default function Reservations() {
             </button>
           )}
 
-          <button
+          {/* Bouton Importation Excel */}
+          <button 
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-4 py-2 rounded-xl cursor-pointer text-sm font-semibold transition-all whitespace-nowrap shrink-0"
           >
@@ -756,6 +808,7 @@ export default function Reservations() {
             <span>{t('import_excel') || 'Importer Excel'}</span>
           </button>
 
+          {/* Bouton Exportation Excel */}
           <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap shrink-0"
@@ -764,20 +817,22 @@ export default function Reservations() {
             <span>{selectedOrderIds.length > 0 ? `Exporter (${selectedOrderIds.length})` : (t('export_excel') || 'Export Excel')}</span>
           </button>
 
+          {/* Bouton Ajout */}
           <button
             onClick={handleOpenAddModal}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>{t('new_onsite') || 'Nouveau sur place'}</span>
+            <span>{t('new_onsite') || 'Nouveau sur place'}</span> 
           </button>
         </div>
       </div>
 
+      {/* Barre de Recherche et Filtres */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-xs border border-gray-200/80 dark:border-gray-700/80 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
-          <input
+          <input 
             type="text"
             placeholder={t('search_placeholder') || "Rechercher par Client, Téléphone, Plaque, Véhicule ou Réf..."}
             value={searchTerm || ''}
@@ -789,8 +844,8 @@ export default function Reservations() {
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
           <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300 font-semibold">
             <Filter className="w-4 h-4 text-gray-400" />
-            <select
-              value={statusFilter}
+            <select 
+              value={statusFilter} 
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="bg-gray-50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-200 font-semibold border border-gray-200 dark:border-gray-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
             >
@@ -806,11 +861,12 @@ export default function Reservations() {
 
           <div className="relative flex items-center">
             <ArrowUpDown className="w-4 h-4 absolute left-3 text-gray-400 pointer-events-none" />
-            <select
-              value={sortBy}
+            <select 
+              value={sortBy} 
               onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
               className="pl-9 pr-4 bg-gray-50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-200 font-semibold border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
             >
+              <option value="date_recent">{t('sort_by') || 'Trier par'}</option>
               <option value="date_recent">{t('sort_date_recent') || 'Date récente'}</option>
               <option value="date_ancienne">{t('sort_date_old') || 'Date ancienne'}</option>
               <option value="a_z">{t('sort_az') || 'A - Z'}</option>
@@ -821,7 +877,7 @@ export default function Reservations() {
 
           <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300 font-semibold">
             <span>{t('show') || 'Afficher'}</span>
-            <select
+            <select 
               value={itemsPerPage}
               onChange={(e) => {
                 setItemsPerPage(Number(e.target.value));
@@ -838,6 +894,7 @@ export default function Reservations() {
         </div>
       </div>
 
+      {/* Tableau des Réservations */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xs border border-gray-200/80 dark:border-gray-700/80 overflow-hidden">
         {loading ? (
           <div className="p-12 flex flex-col items-center justify-center gap-2 text-gray-500">
@@ -852,7 +909,7 @@ export default function Reservations() {
               <thead>
                 <tr className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200/80 dark:border-gray-700/80 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <th className="p-4 w-10 text-center">
-                    <input
+                    <input 
                       type="checkbox"
                       onChange={handleSelectAll}
                       checked={currentOrders.length > 0 && currentOrders.filter(o => !isOrderLocked(o.status)).every(o => selectedOrderIds.includes(o.id))}
@@ -878,7 +935,7 @@ export default function Reservations() {
                     return (
                       <tr key={order.id} className={`hover:bg-gray-100/70 dark:hover:bg-gray-700/60 transition-colors ${isSelected ? 'bg-blue-50/40 dark:bg-blue-950/40' : ''} ${locked ? 'bg-gray-50/50 dark:bg-gray-900/20' : ''}`}>
                         <td className="p-4 text-center">
-                          <input
+                          <input 
                             type="checkbox"
                             checked={isSelected}
                             disabled={locked}
@@ -897,11 +954,11 @@ export default function Reservations() {
                           <div className="font-semibold text-gray-800 dark:text-gray-200">{order.phone}</div>
                           <div className="text-gray-400 truncate max-w-[160px]">{order.email}</div>
                         </td>
-
+                        
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={order.carPhoto}
+                            <img 
+                              src={order.carPhoto} 
                               alt={order.carName}
                               className="w-14 h-11 rounded-xl object-cover border border-gray-200 dark:border-gray-700 shadow-xs shrink-0 bg-gray-100"
                               onError={(e) => { e.target.src = DEFAULT_CAR_IMAGE; }}
@@ -932,15 +989,15 @@ export default function Reservations() {
                         </td>
                         <td className="p-4">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                            order.status === 'En cours'
+                            order.status === 'En cours' 
                               ? 'bg-blue-50 text-blue-700 border-blue-200/85 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/80' :
-                            order.status === 'Terminée'
+                            order.status === 'Terminée' 
                               ? 'bg-purple-50 text-purple-700 border-purple-200/85 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/80' :
-                            order.status === 'Validée' || order.status === 'Confirmée'
+                            order.status === 'Validée' || order.status === 'Confirmée' 
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200/85 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/80' :
-                            order.status === 'En attente'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200/85 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/80' :
-                            order.status === 'Refusée'
+                            order.status === 'En attente' 
+                              ? 'bg-amber-50 text-amber-700 border-amber-200/85 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/80' : 
+                            order.status === 'Refusée' 
                               ? 'bg-orange-50 text-orange-700 border-orange-200/85 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/80' :
                             'bg-rose-50 text-rose-700 border-rose-200/85 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/80'
                           }`}>
@@ -954,7 +1011,7 @@ export default function Reservations() {
                         </td>
                         <td className="p-4 text-center">
                           <div className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
-                            {!locked && order.status === 'En attente' && (
+                            {!locked && order.status === 'En attente' ? (
                               <select
                                 value={order.status}
                                 onChange={(e) => handleStatusChange(order.id, order.status, e.target.value, order.carId)}
@@ -966,7 +1023,7 @@ export default function Reservations() {
                                 <option value="En cours">{t('in_progress') || 'En cours'}</option>
                                 <option value="Terminée">{t('completed') || 'Terminée'}</option>
                               </select>
-                            )}
+                            ) : null}
 
                             {locked ? (
                               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl font-bold text-xs" title="Réservation verrouillée">
@@ -1007,15 +1064,22 @@ export default function Reservations() {
           </div>
         )}
 
+        {/* Pagination Basse */}
         {!loading && filteredOrders.length > 0 && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50 flex flex-col sm:flex-row items-center justify-between gap-4 font-semibold text-xs text-gray-500 dark:text-gray-400">
             <p className="text-center sm:text-left">
               {t('showing') || 'Affichage de'}{' '}
-              <span className="font-bold text-gray-700 dark:text-gray-200">{startIndex + 1}</span>{' '}
+              <span className="font-bold text-gray-700 dark:text-gray-200">
+                {startIndex + 1}
+              </span>{' '}
               {t('to') || 'à'}{' '}
-              <span className="font-bold text-gray-700 dark:text-gray-200">{Math.min(startIndex + itemsPerPage, filteredOrders.length)}</span>{' '}
+              <span className="font-bold text-gray-700 dark:text-gray-200">
+                {Math.min(startIndex + itemsPerPage, filteredOrders.length)}
+              </span>{' '}
               {t('of') || 'sur'}{' '}
-              <span className="font-bold text-gray-700 dark:text-gray-200">{filteredOrders.length}</span>{' '}
+              <span className="font-bold text-gray-700 dark:text-gray-200">
+                {filteredOrders.length}
+              </span>{' '}
               {t('entries') || 'réservations'}
             </p>
 
@@ -1029,23 +1093,27 @@ export default function Reservations() {
               </button>
 
               <div className="flex items-center gap-1 px-1">
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center ${
-                      currentPage === page
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
-                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+                  (page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
               </div>
 
               <button
-                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
                 disabled={currentPage === totalPages}
                 className="p-2 rounded-lg bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
               >
@@ -1056,9 +1124,10 @@ export default function Reservations() {
         )}
       </div>
 
+      {/* FORMULAIRE MODAL CREATION / MODIFICATION */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 dark:border-gray-700 flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 dark:border-gray-700 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white shrink-0 shadow-sm">
               <div className="space-y-0.5">
                 <h2 className="text-lg font-bold flex items-center gap-2">
@@ -1069,8 +1138,8 @@ export default function Reservations() {
                   {t('create_reservation_sub') || "Affectez directement un véhicule disponible à un client enregistré"}
                 </p>
               </div>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
+              <button 
+                onClick={() => setIsAddModalOpen(false)} 
                 className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1078,9 +1147,10 @@ export default function Reservations() {
             </div>
 
             <form onSubmit={handleSaveReservationSubmit} className="p-6 space-y-4 text-xs sm:text-sm overflow-y-auto">
+
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                  {t('select_client') || 'Sélectionner le client'}
+                  {t('select_client') || 'Sélectionner le client'} 
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
@@ -1112,11 +1182,11 @@ export default function Reservations() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                  {t('vehicle_plate_label') || "Véhicule (par plaque d'immatriculation)"}
+                  {t('vehicle_plate_label') || "Véhicule (par plaque d'immatriculation)"} 
                 </label>
                 <div className="relative mb-3">
                   <Car className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
-                  <select
+                  <select 
                     required
                     value={newReservation.car}
                     onChange={(e) => setNewReservation({ ...newReservation, car: e.target.value })}
@@ -1132,9 +1202,9 @@ export default function Reservations() {
 
                 {selectedCarObj && (
                   <div className="flex items-center gap-3 p-3.5 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl">
-                    <img
-                      src={getCarPhotoUrl(selectedCarObj)}
-                      alt="Aperçu véhicule"
+                    <img 
+                      src={getCarPhotoUrl(selectedCarObj)} 
+                      alt="Aperçu véhicule" 
                       className="w-20 h-14 rounded-xl object-cover border border-blue-200 dark:border-blue-700 shadow-xs shrink-0 bg-gray-100"
                       onError={(e) => { e.target.src = DEFAULT_CAR_IMAGE; }}
                     />
@@ -1160,10 +1230,8 @@ export default function Reservations() {
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t('start_date') || 'Date de début'}</label>
                   <div className="relative">
                     <Calendar className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
-                    <input
-                      type="date"
-                      required
-                      min={isEditing ? undefined : today}
+                    <input 
+                      type="date" required min={isEditing ? undefined : today}
                       value={newReservation.startDate}
                       onChange={(e) => setNewReservation({ ...newReservation, startDate: e.target.value })}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 font-semibold border border-gray-200 dark:border-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
@@ -1175,10 +1243,8 @@ export default function Reservations() {
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t('end_date') || 'Date de fin'}</label>
                   <div className="relative">
                     <Calendar className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
-                    <input
-                      type="date"
-                      required
-                      min={newReservation.startDate}
+                    <input 
+                      type="date" required min={newReservation.startDate}
                       value={newReservation.endDate}
                       onChange={(e) => setNewReservation({ ...newReservation, endDate: e.target.value })}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 font-semibold border border-gray-200 dark:border-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
@@ -1204,7 +1270,7 @@ export default function Reservations() {
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700/80">
                 <button
-                  type="button"
+                  type="button" 
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-xl font-semibold cursor-pointer transition-colors text-xs sm:text-sm"
                 >
@@ -1223,8 +1289,9 @@ export default function Reservations() {
         </div>
       )}
 
+      {/* Modal Suppression */}
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 max-w-sm w-full space-y-5 border border-gray-100 dark:border-gray-700 shadow-2xl">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl dark:bg-rose-950/60 shrink-0">
