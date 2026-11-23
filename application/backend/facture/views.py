@@ -1,11 +1,10 @@
 import os
-import re
 import socket
 import requests
 import traceback
 import urllib.parse
-from datetime import datetime, date, timedelta
 from django.conf import settings
+from django.core.cache import cache
 from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import Q
@@ -13,7 +12,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
@@ -56,9 +55,9 @@ def send_invoice_email(request):
         )
 
     ids_to_fetch = invoice_ids if invoice_ids else [invoice_id]
-    factures = Facture.objects.select_related('reservation', 'reservation__car').filter(pk__in=ids_to_fetch)
+    factures = list(Facture.objects.select_related('reservation', 'reservation__car').filter(pk__in=ids_to_fetch))
 
-    if not factures.exists():
+    if not factures:
         return Response(
             {"error": "Facture(s) introuvable(s)."},
             status=status.HTTP_404_NOT_FOUND
@@ -81,7 +80,7 @@ def send_invoice_email(request):
 
         current_host = request.get_host()
         scheme = request.scheme
-        first_facture = factures.first()
+        first_facture = factures[0]
         verify_url = f"{scheme}://{current_host}/verify?id={first_facture.id}&ref={first_facture.reference}"
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=130x130&data={urllib.parse.quote(verify_url)}"
 
@@ -131,8 +130,8 @@ def send_invoice_email(request):
             """
 
         single_car_block = ""
-        if not is_combined and factures.count() == 1:
-            f = factures.first()
+        if not is_combined and len(factures) == 1:
+            f = factures[0]
             res = f.reservation
             car = getattr(res, 'car', None)
             car_name = getattr(res, 'car_name', 'Véhicule')
@@ -219,7 +218,6 @@ def send_invoice_email(request):
         brevo_api_key = getattr(settings, 'BREVO_API_KEY', '') or os.environ.get('BREVO_API_KEY', '')
 
         if brevo_api_key:
-            # Envoi via l'API HTTP Brevo (Port 443 autorisé sur Render)
             brevo_url = "https://api.brevo.com/v3/smtp/email"
             headers = {
                 "accept": "application/json",
@@ -241,7 +239,6 @@ def send_invoice_email(request):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         else:
-            # Fallback SMTP (pour le développement local uniquement)
             email = EmailMultiAlternatives(
                 subject=email_subject,
                 body=message_text,
@@ -268,28 +265,42 @@ class FactureViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ['reference', 'statut', 'mode_paiement', 'reservation__client_name', 'reservation__car_name']
 
-    def get_queryset(self):
+    def _cleanup_expired_invoices_if_needed(self):
+        """Annule les factures impayées périmées au maximum une fois par minute."""
+        if cache.get('facture_expired_cleanup_done'):
+            return
+
+        cache.set('facture_expired_cleanup_done', True, timeout=60)
         today = timezone.now().date()
 
-        factures_perimees = Facture.objects.select_related('reservation').filter(
-            Q(reservation__status__iexact='validated') | 
-            Q(reservation__status__iexact='validée') |
-            Q(reservation__status__iexact='confirmée') |
-            Q(reservation__status__iexact='confirmee'),
-            statut='En attente',
-            montant_paye=0,
-            reservation__start_date__lt=today
+        factures_perimees = list(
+            Facture.objects.select_related('reservation').filter(
+                Q(reservation__status__iexact='validated') |
+                Q(reservation__status__iexact='validée') |
+                Q(reservation__status__iexact='confirmée') |
+                Q(reservation__status__iexact='confirmee'),
+                statut='En attente',
+                montant_paye=0,
+                reservation__start_date__lt=today
+            )
         )
 
-        for f in factures_perimees:
-            if f.reservation:
-                f.reservation.status = 'annulée'
-                f.reservation.save()
-            f.statut = 'Annulée'
-            f.save()
+        if not factures_perimees:
+            return
 
-        queryset = Facture.objects.select_related('reservation', 'reservation__car').filter(
-            Q(reservation__status__iexact='validated') | 
+        facture_ids = [f.id for f in factures_perimees]
+        reservation_ids = [f.reservation_id for f in factures_perimees if f.reservation_id]
+
+        Facture.objects.filter(id__in=facture_ids).update(statut='Annulée')
+        if reservation_ids:
+            from reservation.models import Reservation
+            Reservation.objects.filter(id__in=reservation_ids).update(status='annulée')
+
+    def get_queryset(self):
+        self._cleanup_expired_invoices_if_needed()
+
+        queryset = Facture.objects.select_related('reservation', 'reservation__car', 'reservation__client').filter(
+            Q(reservation__status__iexact='validated') |
             Q(reservation__status__iexact='validée') |
             Q(reservation__status__iexact='confirmée') |
             Q(reservation__status__iexact='confirmee') |
@@ -305,7 +316,7 @@ class FactureViewSet(viewsets.ModelViewSet):
 
         if client_email:
             queryset = queryset.filter(
-                Q(reservation__client_email__iexact=client_email) | 
+                Q(reservation__client_email__iexact=client_email) |
                 Q(reservation__client__email__iexact=client_email)
             )
         elif user and user.is_authenticated and not user.is_staff:
@@ -378,10 +389,10 @@ class FactureViewSet(viewsets.ModelViewSet):
 
         current_solde = float(getattr(user, 'solde_depot', 0.0))
         new_solde = current_solde + montant
-        
+
         if hasattr(user, 'solde_depot'):
             user.solde_depot = new_solde
-            user.save()
+            user.save(update_fields=['solde_depot'])
 
         return Response({
             "message": f"Dépôt de {montant:,.0f} AR effectué avec succès.",
@@ -395,7 +406,7 @@ class FactureViewSet(viewsets.ModelViewSet):
         telephone = self.request.data.get('telephone_paiement') or self.request.data.get('telephone')
         montant_paye_demandé = self.request.data.get('montant_paye')
         client_email_recu = self.request.data.get('client_email')
-        
+
         instance = self.get_object()
         user = self.request.user
 
@@ -404,7 +415,7 @@ class FactureViewSet(viewsets.ModelViewSet):
                 user = CustomUser.objects.filter(email__iexact=client_email_recu).first()
             elif instance.reservation and getattr(instance.reservation, 'client_email', None):
                 user = CustomUser.objects.filter(email__iexact=instance.reservation.client_email).first()
-            
+
             if not user and telephone:
                 user = CustomUser.objects.filter(phone_number=telephone, solde_depot__gt=0).first()
                 if not user:
@@ -440,7 +451,7 @@ class FactureViewSet(viewsets.ModelViewSet):
                             raise ValidationError({
                                 "error": f"Fonds insuffisants ! Votre solde est de {current_solde:,.0f} AR, mais le versement requis est de {versement:,.0f} AR."
                             })
-                        
+
                         user.solde_depot = current_solde - versement
                         user.save(update_fields=['solde_depot'])
 
@@ -448,6 +459,7 @@ class FactureViewSet(viewsets.ModelViewSet):
                 pass
 
         serializer.save()
+        cache.delete('facture_expired_cleanup_done')
 
 
 @api_view(['GET'])
@@ -455,14 +467,14 @@ class FactureViewSet(viewsets.ModelViewSet):
 def verify_invoice_view(request):
     invoice_id = request.GET.get('id')
     invoice_ref = request.GET.get('ref')
-    
+
     try:
         facture = Facture.objects.select_related('reservation', 'reservation__car').get(pk=invoice_id, reference=invoice_ref)
         res = facture.reservation
         car_name = getattr(res, 'car_name', getattr(res.car, 'name', 'Véhicule')) if res else 'Véhicule'
         client_name = facture.reservation.client_name if hasattr(facture.reservation, 'client_name') else 'Client'
         total_price = facture.reservation.total_price if facture.reservation and facture.reservation.total_price else getattr(facture, 'total', 0)
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>

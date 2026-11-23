@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: application/backend
     buildCommand: "./build.sh"
-    startCommand: "python manage.py migrate && gunicorn core.wsgi:application"
+    startCommand: "python manage.py migrate --noinput && gunicorn core.wsgi:application --workers 1 --threads 2 --worker-class gthread --max-requests 500 --max-requests-jitter 50 --timeout 60"
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -16,5 +16,13 @@ services:
         value: "adrwarecontact@gmail.com"
       - key: EMAIL_HOST_PASSWORD
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
         sync: false

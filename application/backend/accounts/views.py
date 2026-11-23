@@ -1,26 +1,25 @@
-# accounts/views.py
 import random
-from rest_framework import generics, status, permissions
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from django.conf import settings
-from django_rest_passwordreset.models import ResetPasswordToken
-from .serializers import RegisterSerializer, UserProfileSerializer
-from clients.models import Client
-from accounts.utils import send_brevo_email
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse
+from django_rest_passwordreset.models import ResetPasswordToken
+from rest_framework import generics, permissions, status
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from accounts.utils import send_brevo_email
+from clients.models import Client
+from .serializers import RegisterSerializer, UserProfileSerializer
 
 User = get_user_model()
 
 
 def instance_is_admin(user):
     """Vérifie si l'utilisateur est un membre du staff ou un superadministrateur."""
-    return user.is_staff or user.is_superuser
+    return bool(user.is_staff or user.is_superuser)
 
 
 def sync_client_profile(user):
@@ -30,11 +29,11 @@ def sync_client_profile(user):
 
     phone_val = getattr(user, 'phone_number', None) or getattr(user, 'phone', '') or ''
     address_val = getattr(user, 'address', None) or ''
-    email_val = user.email.lower() if user.email else ''
+    email_val = (user.email or '').strip().lower()
 
     client = Client.objects.filter(user=user).first()
     if not client and email_val:
-        client = Client.objects.filter(email=email_val).first()
+        client = Client.objects.filter(email__iexact=email_val).first()
 
     if client:
         client.user = user
@@ -45,7 +44,7 @@ def sync_client_profile(user):
             client.phone = phone_val
         if address_val:
             client.address = address_val
-        client.save()
+        client.save(update_fields=['user', 'first_name', 'last_name', 'email', 'phone', 'address'])
     else:
         client = Client.objects.create(
             user=user,
@@ -65,28 +64,27 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     - Bloque les administrateurs/staff (is_staff = True) sur l'application Mobile.
     - Vérifie que le compte est actif (is_active = True).
     """
+
     def post(self, request, *args, **kwargs):
-        is_web_login = request.data.get('is_web', False)
-        username = request.data.get('username') or request.data.get('email')
-        
-        if username:
-            username = username.strip().lower()
+        is_web_login = bool(request.data.get('is_web', False))
+        identifier = request.data.get('username') or request.data.get('email')
 
-        user = (
-            User.objects.filter(email__iexact=username).first() or 
-            User.objects.filter(username__iexact=username).first() or
-            User.objects.filter(phone_number=username).first()
-        )
-
-        if user:
-            if not user.is_active:
-                raise AuthenticationFailed("Votre compte est inactif. Veuillez valider votre code OTP ou attendre l'activation par l'administrateur.")
-
-            if is_web_login and not user.is_staff:
-                raise AuthenticationFailed("Accès refusé : Cet espace est réservé exclusivement au personnel (Staff).")
-            
-            if not is_web_login and user.is_staff:
-                raise AuthenticationFailed("Accès refusé : Les comptes administrateurs doivent utiliser l'interface Web.")
+        if identifier:
+            identifier = str(identifier).strip().lower()
+            user = (
+                User.objects.filter(email__iexact=identifier).first()
+                or User.objects.filter(username__iexact=identifier).first()
+                or User.objects.filter(phone_number=identifier).first()
+            )
+            if user:
+                if not user.is_active:
+                    raise AuthenticationFailed(
+                        "Votre compte est inactif. Veuillez valider votre code OTP ou attendre l'activation par l'administrateur."
+                    )
+                if is_web_login and not user.is_staff:
+                    raise AuthenticationFailed("Accès refusé : Cet espace est réservé exclusivement au personnel (Staff).")
+                if not is_web_login and user.is_staff:
+                    raise AuthenticationFailed("Accès refusé : Les comptes administrateurs doivent utiliser l'interface Web.")
 
         return super().post(request, *args, **kwargs)
 
@@ -98,20 +96,20 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         mutable_data = request.data.copy()
-        if 'email' in mutable_data and mutable_data['email']:
-            mutable_data['email'] = mutable_data['email'].strip().lower()
+        if mutable_data.get('email'):
+            mutable_data['email'] = str(mutable_data['email']).strip().lower()
 
         serializer = self.get_serializer(data=mutable_data)
         serializer.is_valid(raise_exception=True)
-        
+
         user = serializer.save()
         user.is_active = False
-        user.save()
+        user.save(update_fields=['is_active'])
 
-        # CAS 1 : Compte Staff / Admin -> Envoi à l'admin via Brevo
-        if user.is_staff or user.is_superuser:
+        if instance_is_admin(user):
             try:
-                activation_url = f"https://adrware-backend.onrender.com/api/accounts/activate/{user.id}/"
+                base_url = getattr(settings, 'BACKEND_URL', 'https://adrware-backend.onrender.com').rstrip('/')
+                activation_url = f"{base_url}/api/accounts/activate/{user.id}/"
                 subject = "🔔 Nouveau compte Staff/Admin en attente d'activation - ADRWARE"
                 html_content = f"""
                     <p>Bonjour Super-Admin,</p>
@@ -139,98 +137,86 @@ class RegisterView(generics.CreateAPIView):
                 "is_staff": user.is_staff
             }, status=status.HTTP_201_CREATED)
 
-        else:
-            # CAS 2 : Client Mobile -> Envoi du code OTP par Brevo
-            sync_client_profile(user)
+        sync_client_profile(user)
 
-            try:
-                ResetPasswordToken.objects.filter(user=user).delete()
-                otp_code = f"{random.randint(0, 999999):06d}"
-                ResetPasswordToken.objects.create(user=user, key=otp_code)
+        try:
+            ResetPasswordToken.objects.filter(user=user).delete()
+            otp_code = f"{random.randint(0, 999999):06d}"
+            ResetPasswordToken.objects.create(user=user, key=otp_code)
 
-                subject = "🔐 Votre code OTP à 6 chiffres - ADRWARE"
-                html_content = f"""
-                    <p>Bonjour {user.first_name or 'Client'},</p>
-                    <p>Votre code de vérification OTP à 6 chiffres pour activer votre compte est :</p>
-                    <h2 style="color: #4f46e5; letter-spacing: 2px;">{otp_code}</h2>
-                    <p>Veuillez saisir ce code dans l'application pour valider votre inscription.</p>
-                """
-                send_brevo_email(
-                    to_email=user.email,
-                    to_name=user.get_full_name() or "Client",
-                    subject=subject,
-                    html_content=html_content
-                )
-            except Exception as e:
-                print(f"Erreur d'envoi d'e-mail OTP via Brevo : {e}")
+            subject = "🔐 Votre code OTP à 6 chiffres - ADRWARE"
+            html_content = f"""
+                <p>Bonjour {user.first_name or 'Client'},</p>
+                <p>Votre code de vérification OTP à 6 chiffres pour activer votre compte est :</p>
+                <h2 style="color: #4f46e5; letter-spacing: 2px;">{otp_code}</h2>
+                <p>Veuillez saisir ce code dans l'application pour valider votre inscription.</p>
+            """
+            send_brevo_email(
+                to_email=user.email,
+                to_name=user.get_full_name() or "Client",
+                subject=subject,
+                html_content=html_content
+            )
+        except Exception as e:
+            print(f"Erreur d'envoi d'e-mail OTP via Brevo : {e}")
 
-            return Response({
-                "message": "Inscription réussie. Veuillez entrer le code OTP à 6 chiffres reçu par e-mail pour activer votre compte.",
-                "email": user.email,
-                "is_staff": user.is_staff
-            }, status=status.HTTP_201_CREATED)
+        return Response({
+            "message": "Inscription réussie. Veuillez entrer le code OTP à 6 chiffres reçu par e-mail pour activer votre compte.",
+            "email": user.email,
+            "is_staff": user.is_staff
+        }, status=status.HTTP_201_CREATED)
 
 
 class VerifyOTPView(APIView):
-    """
-    Permet au client mobile de valider son compte en saisissant le code OTP à 6 chiffres reçu par e-mail.
-    """
+    """Permet au client mobile de valider son compte en saisissant le code OTP à 6 chiffres reçu par e-mail."""
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = request.data.get('email', '').strip().lower()
-        # On accepte soit 'otp' (envoyé par le mobile), soit 'otp_code'
+        email = str(request.data.get('email') or '').strip().lower()
         otp_code = request.data.get('otp') or request.data.get('otp_code')
-        
-        if otp_code:
-            otp_code = str(otp_code).strip()
+        otp_code = str(otp_code).strip() if otp_code else ''
 
         if not email or not otp_code:
             return Response({"error": "L'e-mail et le code OTP sont requis."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = User.objects.get(email__iexact=email)
-            
-            # Récupère le token le plus récent correspondant à l'utilisateur et au code saisi
-            token_record = ResetPasswordToken.objects.filter(user=user, key=otp_code).order_by('-created_at').first()
-
-            if token_record:
-                user.is_active = True
-                user.save()
-                
-                # Supprime tous les tokens associés pour nettoyer
-                ResetPasswordToken.objects.filter(user=user).delete()
-                
-                return Response({"message": "Compte activé avec succès ! Vous pouvez maintenant vous connecter."}, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "Code OTP invalide ou expiré."}, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
             return Response({"error": "Utilisateur introuvable."}, status=status.HTTP_404_NOT_FOUND)
 
+        token_record = ResetPasswordToken.objects.filter(user=user, key=otp_code).order_by('-created_at').first()
+        if token_record:
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+            ResetPasswordToken.objects.filter(user=user).delete()
+            return Response({"message": "Compte activé avec succès ! Vous pouvez maintenant vous connecter."}, status=status.HTTP_200_OK)
+
+        return Response({"error": "Code OTP invalide ou expiré."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class ActivateAccountView(APIView):
-    """
-    Permet au super-administrateur (adrwarecontact@gmail.com) d'activer un compte Staff directement via le lien reçu par e-mail.
-    """
+    """Permet au super-administrateur d'activer un compte Staff directement via le lien reçu par e-mail."""
     permission_classes = [AllowAny]
 
     def get(self, request, user_id):
-        try:
-            target_user = User.objects.get(id=user_id)
-            target_user.is_active = True
-            target_user.save()
+        target_user = User.objects.filter(id=user_id).first()
+        if not target_user:
             return HttpResponse(
-                f"<h2 style='font-family: Arial; text-align: center; color: green; margin-top: 50px;'>"
-                f"✅ Le compte de <b>{target_user.email}</b> a été activé avec succès par le super-administrateur !"
-                f"</h2>",
-                status=200
-            )
-        except User.DoesNotExist:
-            return HttpResponse(
-                f"<h2 style='font-family: Arial; text-align: center; color: red; margin-top: 50px;'>"
-                f"❌ Erreur : Utilisateur cible introuvable."
-                f"</h2>",
+                "<h2 style='font-family: Arial; text-align: center; color: red; margin-top: 50px;'>"
+                "❌ Erreur : Utilisateur cible introuvable."
+                "</h2>",
                 status=404
             )
+
+        target_user.is_active = True
+        target_user.save(update_fields=['is_active'])
+        return HttpResponse(
+            f"<h2 style='font-family: Arial; text-align: center; color: green; margin-top: 50px;'>"
+            f"✅ Le compte de <b>{target_user.email}</b> a été activé avec succès par le super-administrateur !"
+            f"</h2>",
+            status=200
+        )
+
+
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
@@ -246,47 +232,39 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 class UserMeView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        email_param = request.query_params.get('email') or request.data.get('email')
-        user = None
-
+    def _get_target_user(self, email_param=None):
         if email_param:
-            user = User.objects.filter(email__iexact=email_param.strip().lower()).order_by('-solde_depot').first()
-        
-        if not user:
-            user = User.objects.filter(solde_depot__gt=0).order_by('-solde_depot').first()
-            if not user:
-                user = User.objects.first()
+            user = User.objects.filter(email__iexact=str(email_param).strip().lower()).order_by('-solde_depot').first()
+            if user:
+                return user
+        return User.objects.filter(solde_depot__gt=0).order_by('-solde_depot').first() or User.objects.first()
 
-        if not user:
-            return Response({"error": "Utilisateur introuvable."}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = UserProfileSerializer(user)
-        data = serializer.data
-        data['solde_depot'] = float(getattr(user, 'solde_depot', 0.0))
-
+    def _build_user_payload(self, user):
+        data = dict(UserProfileSerializer(user).data)
+        data['solde_depot'] = float(getattr(user, 'solde_depot', 0.0) or 0.0)
         try:
             client_profile = Client.objects.filter(user=user).first()
-            if client_profile:
-                data['total_rentals'] = client_profile.reservations.filter(status='Validée').count()
-            else:
-                data['total_rentals'] = 0
+            data['total_rentals'] = client_profile.reservations.filter(status='Validée').count() if client_profile else 0
         except Exception:
             data['total_rentals'] = 0
+        return data
 
-        return Response(data, status=status.HTTP_200_OK)
+    def get(self, request):
+        email_param = request.query_params.get('email') or request.data.get('email')
+        user = self._get_target_user(email_param)
+        if not user:
+            return Response({"error": "Utilisateur introuvable."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(self._build_user_payload(user), status=status.HTTP_200_OK)
 
     def patch(self, request):
-        user = request.user
         email_param = request.data.get('client_email') or request.data.get('email')
-
+        user = None
         if email_param:
-            user = User.objects.filter(email__iexact=email_param.strip().lower()).order_by('-solde_depot').first()
-
-        if not user or not user.is_authenticated:
-            user_with_balance = User.objects.filter(solde_depot__gt=0).order_by('-solde_depot').first()
-            if user_with_balance:
-                user = user_with_balance
+            user = User.objects.filter(email__iexact=str(email_param).strip().lower()).order_by('-solde_depot').first()
+        elif request.user and request.user.is_authenticated:
+            user = request.user
+        else:
+            user = User.objects.filter(solde_depot__gt=0).order_by('-solde_depot').first()
 
         if not user:
             return Response({"error": "Utilisateur non authentifié."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -294,19 +272,8 @@ class UserMeView(APIView):
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_user = serializer.save()
-        
         sync_client_profile(updated_user)
-        
-        data = serializer.data
-        data['solde_depot'] = float(getattr(updated_user, 'solde_depot', 0.0))
-        
-        try:
-            client_profile = Client.objects.filter(user=updated_user).first()
-            data['total_rentals'] = client_profile.reservations.filter(status='Validée').count() if client_profile else 0
-        except Exception:
-            data['total_rentals'] = 0
-
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(self._build_user_payload(updated_user), status=status.HTTP_200_OK)
 
 
 class ChangePasswordView(APIView):
@@ -319,16 +286,16 @@ class ChangePasswordView(APIView):
 
         if not old_password or not new_password:
             return Response(
-                {"error": "L'ancien et le nouveau mot de passe sont requis."}, 
+                {"error": "L'ancien et le nouveau mot de passe sont requis."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         if not user.check_password(old_password):
             return Response(
-                {"error": "L'ancien mot de passe est incorrect."}, 
+                {"error": "L'ancien mot de passe est incorrect."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=['password'])
         return Response({"message": "Mot de passe modifié avec succès."}, status=status.HTTP_200_OK)
